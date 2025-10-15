@@ -131,10 +131,10 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel,
 /* prints some details from the cm id */
 void show_rdma_cmid(struct rdma_cm_id *id);
 
-extern char *src, *dst;
+// extern char *src, *dst;
 
 /* This is our testing function */
-int check_src_dst();
+int check_src_dst(char* src, char* dst);
 
 class RdmaServer {
 private:
@@ -166,6 +166,11 @@ public:
     int disconnect_and_cleanup();
 };
 
+typedef struct _SimpleBuffer{
+    char* src{NULL};
+    char* dst{NULL};
+} SimpleBuffer;
+
 class RdmaClient {
 private:
     struct rdma_event_channel *cm_event_channel{NULL};
@@ -187,8 +192,10 @@ public:
     int client_prepare_connection(struct sockaddr_in *s_addr);
     int client_pre_post_recv_buffer();
     int client_connect_to_server();
-    int client_xchange_metadata_with_server();
-    int client_remote_memory_ops();
-    int client_disconnect_and_clean();
+    int client_xchange_metadata_with_server(SimpleBuffer* pBuf);
+    int client_remote_memory_ops(SimpleBuffer* pBuf);
+    int client_disconnect_and_clean(SimpleBuffer* pBuf);
 };
+
+// extern char *src , *dst;
 #endif /* RDMA_COMMON_H */

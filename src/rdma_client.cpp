@@ -9,13 +9,12 @@
 #include "rdma_common.h"
 
 /* Source and Destination buffers, where RDMA operations source and sink */
-char *src = NULL, *dst = NULL;
+// char *src = NULL, *dst = NULL;
 
 /* This is our testing function */
-int check_src_dst() {
+int check_src_dst(char* src, char* dst) {
     return memcmp((void *)src, (void *)dst, strlen(src));
 }
-
 
 /* This function prepares client side connection resources for an RDMA
  * connection */
@@ -231,11 +230,11 @@ int RdmaClient::client_connect_to_server() {
  * used because this program is client driven. But it shown here how to do it
  * for the illustration purposes
  */
-int RdmaClient::client_xchange_metadata_with_server() {
+int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer* pBuf) {
     struct ibv_wc wc[2];
     int ret = -1;
     this->client_src_mr =
-        rdma_buffer_register(this->pd, src, strlen(src),
+        rdma_buffer_register(this->pd, pBuf->src, strlen(pBuf->src),
                              (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
                               IBV_ACCESS_REMOTE_WRITE));
     if (!this->client_src_mr) {
@@ -290,12 +289,12 @@ int RdmaClient::client_xchange_metadata_with_server() {
  * 1) RDMA write from src -> remote buffer
  * 2) RDMA read from remote bufer -> dst
  */
-int RdmaClient::client_remote_memory_ops() {
+int RdmaClient::client_remote_memory_ops(SimpleBuffer* pBuf) {
     struct ibv_wc wc;
     int ret = -1;
     int flags=IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
     this->client_dst_mr =
-        rdma_buffer_register(this->pd, dst, strlen(src),
+        rdma_buffer_register(this->pd, pBuf->dst, strlen(pBuf->src),
                              (ibv_access_flags)flags);
                              // (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ));
     if (!this->client_dst_mr) {
@@ -366,7 +365,7 @@ int RdmaClient::client_remote_memory_ops() {
 /* This function disconnects the RDMA connection from the server and cleans up
  * all the resources.
  */
-int RdmaClient::client_disconnect_and_clean() {
+int RdmaClient::client_disconnect_and_clean(SimpleBuffer* pBuf) {
     struct rdma_cm_event *cm_event = NULL;
     int ret = -1;
     /* active disconnect from the client side */
@@ -414,8 +413,8 @@ int RdmaClient::client_disconnect_and_clean() {
     rdma_buffer_deregister(this->client_src_mr);
     rdma_buffer_deregister(this->client_dst_mr);
     /* We free the buffers */
-    free(src);
-    free(dst);
+    free(pBuf->src);
+    free(pBuf->dst);
     /* Destroy protection domain */
     ret = ibv_dealloc_pd(this->pd);
     if (ret) {
@@ -427,5 +426,3 @@ int RdmaClient::client_disconnect_and_clean() {
     printf("Client resource clean up is complete \n");
     return 0;
 }
-
-
