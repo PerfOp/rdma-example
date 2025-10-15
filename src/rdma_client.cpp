@@ -293,10 +293,11 @@ int RdmaClient::client_xchange_metadata_with_server() {
 int RdmaClient::client_remote_memory_ops() {
     struct ibv_wc wc;
     int ret = -1;
+    int flags=IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
     this->client_dst_mr =
         rdma_buffer_register(this->pd, dst, strlen(src),
-                             (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
-                              IBV_ACCESS_REMOTE_READ));
+                             (ibv_access_flags)flags);
+                             // (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ));
     if (!this->client_dst_mr) {
         rdma_error("We failed to create the destination buffer, -ENOMEM\n");
         return -ENOMEM;

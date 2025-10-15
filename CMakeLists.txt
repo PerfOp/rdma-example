@@ -4,6 +4,8 @@ cmake_minimum_required (VERSION 2.6)
 
 project (rdma-example)
 
+find_package(spdlog REQUIRED)
+
 set(PROJECT_SOURCE_DIR ${CMAKE_SOURCE_DIR}/src)
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
 set(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR})
@@ -31,3 +33,6 @@ include_directories("${PROJECT_SOURCE_DIR}" "/home/atr/local/include/")
 
 add_executable(rdma_server ${PROJECT_SOURCE_DIR}/rdma_common.cpp ${PROJECT_SOURCE_DIR}/rdma_server.cpp ${PROJECT_SOURCE_DIR}/server.cpp)
 add_executable(rdma_client ${PROJECT_SOURCE_DIR}/rdma_common.cpp ${PROJECT_SOURCE_DIR}/rdma_client.cpp ${PROJECT_SOURCE_DIR}/client.cpp)
+
+target_link_libraries(rdma_server PRIVATE spdlog::spdlog)
+target_link_libraries(rdma_client PRIVATE spdlog::spdlog)

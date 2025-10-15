@@ -22,9 +22,10 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+#include <spdlog/spdlog.h>
 
 /* Error Macro*/
-#define rdma_error(msg, args...)
+#define rdma_error(msg, args...) do {spdlog::error("{} {}", msg, ##args);}while(0);
 // do {fprintf(stderr, "%s : %d : ERROR : %s\n", __FILE__, __LINE__, msg,
 // ##__VA_ARGS__);}while(0);
 //  fprintf(stderr, "%s : %d : ERROR : "msg, __FILE__, __LINE__, ## args);\
@@ -33,7 +34,7 @@
 /* Debug Macro */
 #define debug(msg, args...)            \
     do {                               \
-        printf("DEBUG: " msg, ##args); \
+        spdlog::debug("{} {} " msg, ##args); \
     } while (0);
 
 #else
