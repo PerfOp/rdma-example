@@ -130,14 +130,19 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel,
 /* prints some details from the cm id */
 void show_rdma_cmid(struct rdma_cm_id *id);
 
+extern char *src, *dst;
+
+/* This is our testing function */
+int check_src_dst();
+
 class RdmaServer {
-public:
+private:
     struct rdma_event_channel *cm_event_channel{NULL};
     struct rdma_cm_id *cm_server_id{NULL};
+    struct rdma_cm_id *cm_client_id{NULL};
     struct ibv_pd *pd{NULL};
     struct ibv_cq *cq{NULL};
     struct ibv_comp_channel *io_completion_channel{NULL};
-    struct rdma_cm_id *cm_client_id{NULL};
     struct ibv_qp *client_qp{NULL};
     struct ibv_mr *client_metadata_mr{NULL};
     struct ibv_mr *server_buffer_mr{NULL};
@@ -151,6 +156,7 @@ public:
     struct ibv_qp_init_attr qp_init_attr;
     struct rdma_buffer_attr client_metadata_attr, server_metadata_attr;
     struct ibv_sge client_recv_sge, server_send_sge;
+
 public:
     int start_rdma_server(struct sockaddr_in *server_addr);
     int setup_client_resources();
@@ -159,9 +165,29 @@ public:
     int disconnect_and_cleanup();
 };
 
-typedef struct _RdmaClient {
+class RdmaClient {
+private:
     struct rdma_event_channel *cm_event_channel{NULL};
-    struct rdma_cm_id *cm_server_id{NULL};
+    struct rdma_cm_id *cm_client_id{NULL};
     struct ibv_pd *pd{NULL};
-} RdmaClient;
+    struct ibv_comp_channel *io_completion_channel{NULL};
+    struct ibv_cq *client_cq{NULL};
+    struct ibv_qp *client_qp{NULL};
+
+    struct ibv_mr *client_metadata_mr{NULL}, *client_src_mr{NULL},
+        *client_dst_mr{NULL}, *server_metadata_mr{NULL};
+    struct ibv_qp_init_attr qp_init_attr;
+    struct ibv_send_wr client_send_wr, *bad_client_send_wr{NULL};
+    struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr{NULL};
+    struct rdma_buffer_attr client_metadata_attr, server_metadata_attr;
+    struct ibv_sge client_send_sge, server_recv_sge;
+
+public:
+    int client_prepare_connection(struct sockaddr_in *s_addr);
+    int client_pre_post_recv_buffer();
+    int client_connect_to_server();
+    int client_xchange_metadata_with_server();
+    int client_remote_memory_ops();
+    int client_disconnect_and_clean();
+};
 #endif /* RDMA_COMMON_H */
