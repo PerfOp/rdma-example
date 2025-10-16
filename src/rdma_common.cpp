@@ -43,6 +43,7 @@ void show_rdma_buffer_attr(struct RdmaBufferAttr *attr){
 	printf("---------------------------------------------------------\n");
 }
 
+// Create and init a memory region and register it with PD.
 struct ibv_mr* rdma_buffer_alloc(struct ibv_pd *pd, uint32_t size,
     enum ibv_access_flags permission)
 {
@@ -198,7 +199,6 @@ int process_work_completion_events (struct ibv_comp_channel *comp_channel,
        return total_wc;
 }
 
-
 /* Code acknowledgment: rping.c from librdmacm/examples */
 int get_addr(char *dst, struct sockaddr *addr)
 {
@@ -213,4 +213,3 @@ int get_addr(char *dst, struct sockaddr *addr)
 	freeaddrinfo(res);
 	return ret;
 }
-

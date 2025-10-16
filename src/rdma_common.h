@@ -10,7 +10,6 @@
 #ifndef RDMA_COMMON_H
 #define RDMA_COMMON_H
 
-#include <atomic>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <getopt.h>
@@ -24,6 +23,8 @@
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
+
+#include <atomic>
 
 /* Error Macro*/
 #define rdma_error(msg, args...)             \
@@ -91,9 +92,10 @@ int process_rdma_cm_event(struct rdma_event_channel *echannel,
                           enum rdma_cm_event_type expected_event,
                           struct rdma_cm_event **cm_event);
 
-/* Allocates an RDMA buffer of size 'length' with permission permission. This
- * function will also register the memory and returns a memory region (MR)
+/* Allocates an RDMA buffer of size 'length' with permission.
+ * Register the memory under PD and returns a memory region (MR)
  * identifier or NULL on error.
+ * alloc : allocating memory and register it with PD.
  * @pd: Protection domain where the buffer should be allocated
  * @length: Length of the buffer
  * @permission: OR of IBV_ACCESS_* permissions as defined for the enum
@@ -144,6 +146,104 @@ void terminate(int signal);
 /* This is our testing function */
 int check_src_dst(char *src, char *dst);
 
+class MemoryRegion {
+private:
+    void *m_pbuf;
+    struct ibv_mr *m_mr;
+    struct ibv_pd *m_pd;
+    uint32_t m_size;
+    enum ibv_access_flags m_permission;
+
+public:
+    MemoryRegion() : m_size(0), m_pbuf(NULL), m_mr(NULL), m_pd(NULL) {}
+    virtual ~MemoryRegion() {}
+
+    int Attach(const struct ibv_pd *pd, const void *buf, const uint32_t size,
+               enum ibv_access_flags permission) {
+        if (!pd) {
+            rdma_error("Protection domain is NULL \n");
+            return -1;
+        }
+        m_pd = pd;
+        if (!buf) {
+            rdma_error("attaching an invalid buffer");
+            return -1;
+        }
+        m_mr = rdma_buffer_register(m_pd, buf, m_size, permission);
+        if (!m_mr) {
+            rdma_error("Failed to create mr on buffer, errno: %d \n", -errno);
+            free(buf);
+            return -1;
+        }
+        m_size = size;
+        m_pbuf = buf;
+        m_permission = permission;
+        debug("Buffer attached: %p , len: %u \n", buf, size);
+        return 0;
+    }
+    int DeAttach() {
+        if (!m_mr) {
+            rdma_error("Passed memory region is NULL, ignoring\n");
+            return -1;
+        }
+        rdma_buffer_deregister(m_mr);
+        return 0;
+    }
+};
+
+class MemoryRegionAllocator {
+private:
+    void *m_pbuf;
+    struct ibv_mr *m_mr;
+    struct ibv_pd *m_pd;
+    uint32_t m_size;
+    enum ibv_access_flags m_permission;
+
+public:
+    MemoryRegionAllocator() : m_size(0), m_pbuf(NULL), m_mr(NULL), m_pd(NULL) {}
+    virtual ~MemoryRegionAllocator() {}
+    inline const struct ibv_mr *get_mr() { return m_mr; }
+
+    int Allocate(const struct ibv_pd *pd, const uint32_t size,
+                 enum ibv_access_flags permission) {
+        // Create and init a memory region and register it with PD.
+        if (!pd) {
+            rdma_error("Protection domain is NULL \n");
+            return -1;
+        }
+        m_pd = pd;
+        void *buf = calloc(1, size);
+        if (!buf) {
+            rdma_error("failed to allocate buffer, -ENOMEM\n");
+            return -1;
+        }
+        debug("Buffer allocated: %p , len: %u \n", buf, size);
+        // m_mr = ibv_reg_mr(m_pd, buf, m_size, m_permission);
+        m_mr = rdma_buffer_register(m_pd, buf, m_size, permission);
+        if (!m_mr) {
+            rdma_error("Failed to create mr on buffer, errno: %d \n", -errno);
+            free(buf);
+            return -1;
+        }
+        m_size = size;
+        m_pbuf = buf;
+        m_permission = permission;
+        return 0;
+    }
+
+    int DeAllocate() {
+        if (!m_mr) {
+            rdma_error("Passed memory region is NULL, ignoring\n");
+            return -1;
+        }
+        void *to_free = m_mr->addr;
+        rdma_buffer_deregister(m_mr);
+        debug("Buffer %p free'ed\n", to_free);
+        free(to_free);
+        return 0;
+    }
+};
+
 class RdmaServer {
 private:
     struct rdma_event_channel *cm_event_channel;
@@ -177,7 +277,7 @@ public:
           io_completion_channel(NULL),
           client_qp(NULL),
           client_metadata_mr(NULL),
-          server_buffer_mr(NULL),
+          // server_buffer_mr(NULL),
           server_metadata_mr(NULL),
           bad_client_recv_wr(NULL),
           bad_server_send_wr(NULL) {}
@@ -189,7 +289,7 @@ public:
     int disconnect_and_cleanup();
     int server_cleanup();
 
-    int handle_connect_event_block();
+    int block_handle_connect_event();
 };
 
 class SimpleBuffer {

@@ -164,7 +164,7 @@ int RdmaServer::setup_client_resources() {
     return ret;
 }
 
-int RdmaServer::handle_connect_event_block(){
+int RdmaServer::block_handle_connect_event(){
     int ret = -1;
     struct rdma_cm_event *cm_event = NULL;
     /* now, we expect a client to connect and generate a
