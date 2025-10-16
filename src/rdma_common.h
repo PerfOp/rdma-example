@@ -57,8 +57,9 @@
 #define DEFAULT_RDMA_PORT (20886)
 
 /*
- * We use attribute so that compiler does not step in and try to pad the
- * structure. We use this structure to exchange information between the server
+ * 1. We use attribute so that compiler does not step in and try to pad the
+ * structure.
+ * 2. We use this structure to exchange information between the server
  * and the client.
  *
  * For details see: http://gcc.gnu.org/onlinedocs/gcc/Type-Attributes.html
@@ -159,8 +160,9 @@ private:
     struct ibv_recv_wr client_recv_wr;
     struct ibv_send_wr server_send_wr;
     struct ibv_qp_init_attr qp_init_attr;
-    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
     struct ibv_sge client_recv_sge, server_send_sge;
+
+    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
 
 public:
     RdmaServer()
@@ -218,8 +220,9 @@ private:
     struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr;
 
     struct ibv_qp_init_attr qp_init_attr;
-    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
     struct ibv_sge client_send_sge, server_recv_sge;
+
+    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
 
 public:
     RdmaClient()
