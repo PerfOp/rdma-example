@@ -277,7 +277,7 @@ public:
           io_completion_channel(NULL),
           client_qp(NULL),
           client_metadata_mr(NULL),
-          // server_buffer_mr(NULL),
+          server_buffer_mr(NULL),
           server_metadata_mr(NULL),
           bad_client_recv_wr(NULL),
           bad_server_send_wr(NULL) {}
