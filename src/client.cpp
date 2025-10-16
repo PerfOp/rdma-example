@@ -26,9 +26,6 @@ int main(int argc, char **argv) {
     bzero(&server_sockaddr, sizeof server_sockaddr);
     server_sockaddr.sin_family = AF_INET;
     server_sockaddr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
-    /* buffers are NULL */
-    recvBuf.src = recvBuf.dst = NULL;
-    /* Parse Command Line Arguments */
     while ((option = getopt(argc, argv, "s:a:p:")) != -1) {
         switch (option) {
             case 's':
@@ -45,7 +42,7 @@ int main(int argc, char **argv) {
                 if (!recvBuf.dst) {
                     rdma_error(
                         "Failed to allocate destination memory, -ENOMEM\n");
-                    free(recvBuf.src);
+                    // free(recvBuf.src);
                     return -ENOMEM;
                 }
                 break;

@@ -16,8 +16,19 @@ int check_src_dst(char* src, char* dst) {
     return memcmp((void *)src, (void *)dst, strlen(src));
 }
 
-/* This function prepares client side connection resources for an RDMA
- * connection */
+/* Step 1: This function prepares client side connection resources for
+ * an RDMA connection (no interaction to the remote server):
+ * 1) create event_channel;
+ * 2) create client_id on top of event_channel;
+ * 3) resolve the address (client_id is optional).
+ * 4) block for handling resolve event.
+ * 5) establish connection: resolve an RDMA route to destination address
+ * 6) create the resource:
+ *    * pd
+ *    * io_completion_channel
+ *    * cq of client
+ *    * qp of client
+ * */
 int RdmaClient::client_prepare_connection(struct sockaddr_in *s_addr) {
     struct rdma_cm_event *cm_event = NULL;
     int ret = -1;
@@ -167,7 +178,9 @@ int RdmaClient::client_prepare_connection(struct sockaddr_in *s_addr) {
     return 0;
 }
 
-/* Pre-posts a receive buffer before calling rdma_connect () */
+/* Step 2: Pre-posts a receive buffer before calling rdma_connect ()
+ * 1) register MR for server_metadata which store the server_metadata_attr
+ * */
 int RdmaClient::client_pre_post_recv_buffer() {
     int ret = -1;
     this->server_metadata_mr = rdma_buffer_register(
@@ -412,9 +425,6 @@ int RdmaClient::client_disconnect_and_clean(SimpleBuffer* pBuf) {
     rdma_buffer_deregister(this->client_metadata_mr);
     rdma_buffer_deregister(this->client_src_mr);
     rdma_buffer_deregister(this->client_dst_mr);
-    /* We free the buffers */
-    free(pBuf->src);
-    free(pBuf->dst);
     /* Destroy protection domain */
     ret = ibv_dealloc_pd(this->pd);
     if (ret) {

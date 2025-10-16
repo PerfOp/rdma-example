@@ -17,23 +17,26 @@
 #include <netdb.h>
 #include <netinet/in.h>
 #include <rdma/rdma_cma.h>
+#include <spdlog/spdlog.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <spdlog/spdlog.h>
 
 /* Error Macro*/
-#define rdma_error(msg, args...) do {spdlog::error("{} {}", msg, ##args);}while(0);
+#define rdma_error(msg, args...)             \
+    do {                                     \
+        spdlog::error("{} {}", msg, ##args); \
+    } while (0);
 // do {fprintf(stderr, "%s : %d : ERROR : %s\n", __FILE__, __LINE__, msg,
 // ##__VA_ARGS__);}while(0);
 //  fprintf(stderr, "%s : %d : ERROR : "msg, __FILE__, __LINE__, ## args);\
 
 #ifdef ACN_RDMA_DEBUG
 /* Debug Macro */
-#define debug(msg, args...)            \
-    do {                               \
+#define debug(msg, args...)                  \
+    do {                                     \
         spdlog::debug("{} {} " msg, ##args); \
     } while (0);
 
@@ -134,7 +137,7 @@ void show_rdma_cmid(struct rdma_cm_id *id);
 // extern char *src, *dst;
 
 /* This is our testing function */
-int check_src_dst(char* src, char* dst);
+int check_src_dst(char *src, char *dst);
 
 class RdmaServer {
 private:
@@ -166,10 +169,24 @@ public:
     int disconnect_and_cleanup();
 };
 
-typedef struct _SimpleBuffer{
-    char* src{NULL};
-    char* dst{NULL};
-} SimpleBuffer;
+class SimpleBuffer {
+public:
+    char *src{NULL};
+    char *dst{NULL};
+
+public:
+    SimpleBuffer() : src(NULL), dst(NULL) {}
+    ~SimpleBuffer() {
+        if (src) {
+            free(src);
+            src = NULL;
+        }
+        if (dst) {
+            free(dst);
+            dst = NULL;
+        }
+    }
+};
 
 class RdmaClient {
 private:
@@ -192,9 +209,9 @@ public:
     int client_prepare_connection(struct sockaddr_in *s_addr);
     int client_pre_post_recv_buffer();
     int client_connect_to_server();
-    int client_xchange_metadata_with_server(SimpleBuffer* pBuf);
-    int client_remote_memory_ops(SimpleBuffer* pBuf);
-    int client_disconnect_and_clean(SimpleBuffer* pBuf);
+    int client_xchange_metadata_with_server(SimpleBuffer *pBuf);
+    int client_remote_memory_ops(SimpleBuffer *pBuf);
+    int client_disconnect_and_clean(SimpleBuffer *pBuf);
 };
 
 // extern char *src , *dst;
