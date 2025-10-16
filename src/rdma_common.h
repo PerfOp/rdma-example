@@ -63,7 +63,7 @@
  *
  * For details see: http://gcc.gnu.org/onlinedocs/gcc/Type-Attributes.html
  */
-struct __attribute((packed)) rdma_buffer_attr {
+struct __attribute((packed)) RdmaBufferAttr {
     uint64_t address;
     uint32_t length;
     union stag {
@@ -77,7 +77,7 @@ struct __attribute((packed)) rdma_buffer_attr {
 int get_addr(char *dst, struct sockaddr *addr);
 
 /* prints RDMA buffer info structure */
-void show_rdma_buffer_attr(struct rdma_buffer_attr *attr);
+void show_rdma_buffer_attr(struct RdmaBufferAttr *attr);
 
 /*
  * Processes an RDMA connection management (CM) event.
@@ -159,7 +159,7 @@ private:
     struct ibv_recv_wr client_recv_wr;
     struct ibv_send_wr server_send_wr;
     struct ibv_qp_init_attr qp_init_attr;
-    struct rdma_buffer_attr client_metadata_attr, server_metadata_attr;
+    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
     struct ibv_sge client_recv_sge, server_send_sge;
 
 public:
@@ -212,13 +212,13 @@ private:
     struct ibv_cq *client_cq;
     struct ibv_qp *client_qp;
 
-    struct ibv_mr *client_metadata_mr, *client_src_mr,
-        *client_dst_mr, *server_metadata_mr;
+    struct ibv_mr *client_metadata_mr, *client_src_mr, *client_dst_mr,
+        *server_metadata_mr;
     struct ibv_send_wr client_send_wr, *bad_client_send_wr;
     struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr;
 
     struct ibv_qp_init_attr qp_init_attr;
-    struct rdma_buffer_attr client_metadata_attr, server_metadata_attr;
+    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
     struct ibv_sge client_send_sge, server_recv_sge;
 
 public:

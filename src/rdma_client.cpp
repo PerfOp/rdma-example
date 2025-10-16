@@ -179,7 +179,7 @@ int RdmaClient::client_prepare_connection(struct sockaddr_in *s_addr) {
 }
 
 /* Step 2: Pre-posts a receive buffer before calling rdma_connect ()
- * 1) register MR for server_metadata which store the server_metadata_attr
+ * 1) register MR for storing server_metadata (Data structure: server_metadata_attr)
  * */
 int RdmaClient::client_pre_post_recv_buffer() {
     int ret = -1;
