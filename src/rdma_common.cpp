@@ -7,6 +7,12 @@
 
 #include "rdma_common.h"
 
+std::atomic<bool> exit_indicator = false;
+void terminate(int signal)
+{
+    exit_indicator.store(true, std::memory_order_relaxed);
+}
+
 void show_rdma_cmid(struct rdma_cm_id *id)
 {
 	if(!id){

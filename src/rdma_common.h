@@ -10,6 +10,7 @@
 #ifndef RDMA_COMMON_H
 #define RDMA_COMMON_H
 
+#include <atomic>
 #include <arpa/inet.h>
 #include <errno.h>
 #include <getopt.h>
@@ -136,6 +137,8 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel,
 /* prints some details from the cm id */
 void show_rdma_cmid(struct rdma_cm_id *id);
 
+extern std::atomic<bool> exit_indicator;
+void terminate(int signal);
 // extern char *src, *dst;
 
 /* This is our testing function */
