@@ -33,6 +33,7 @@
 // ##__VA_ARGS__);}while(0);
 //  fprintf(stderr, "%s : %d : ERROR : "msg, __FILE__, __LINE__, ## args);\
 
+
 #ifdef ACN_RDMA_DEBUG
 /* Debug Macro */
 #define debug(msg, args...)                  \
@@ -141,18 +142,18 @@ int check_src_dst(char *src, char *dst);
 
 class RdmaServer {
 private:
-    struct rdma_event_channel *cm_event_channel{NULL};
-    struct rdma_cm_id *cm_server_id{NULL};
-    struct rdma_cm_id *cm_client_id{NULL};
-    struct ibv_pd *pd{NULL};
-    struct ibv_cq *cq{NULL};
-    struct ibv_comp_channel *io_completion_channel{NULL};
-    struct ibv_qp *client_qp{NULL};
-    struct ibv_mr *client_metadata_mr{NULL};
-    struct ibv_mr *server_buffer_mr{NULL};
-    struct ibv_mr *server_metadata_mr{NULL};
-    struct ibv_recv_wr *bad_client_recv_wr{NULL};
-    struct ibv_send_wr *bad_server_send_wr{NULL};
+    struct rdma_event_channel *cm_event_channel;
+    struct rdma_cm_id *cm_server_id;
+    struct rdma_cm_id *cm_client_id;
+    struct ibv_pd *pd;
+    struct ibv_cq *cq;
+    struct ibv_comp_channel *io_completion_channel;
+    struct ibv_qp *client_qp;
+    struct ibv_mr *client_metadata_mr;
+    struct ibv_mr *server_buffer_mr;
+    struct ibv_mr *server_metadata_mr;
+    struct ibv_recv_wr *bad_client_recv_wr;
+    struct ibv_send_wr *bad_server_send_wr;
 
     // Variables
     struct ibv_recv_wr client_recv_wr;
@@ -162,6 +163,20 @@ private:
     struct ibv_sge client_recv_sge, server_send_sge;
 
 public:
+    RdmaServer()
+        : cm_event_channel(NULL),
+          cm_server_id(NULL),
+          cm_client_id(NULL),
+          pd(NULL),
+          cq(NULL),
+          io_completion_channel(NULL),
+          client_qp(NULL),
+          client_metadata_mr(NULL),
+          server_buffer_mr(NULL),
+          server_metadata_mr(NULL),
+          bad_client_recv_wr(NULL),
+          bad_server_send_wr(NULL) {}
+
     int start_rdma_server(struct sockaddr_in *server_addr);
     int setup_client_resources();
     int accept_client_connection();
@@ -171,8 +186,8 @@ public:
 
 class SimpleBuffer {
 public:
-    char *src{NULL};
-    char *dst{NULL};
+    char *src;
+    char *dst;
 
 public:
     SimpleBuffer() : src(NULL), dst(NULL) {}
@@ -190,22 +205,37 @@ public:
 
 class RdmaClient {
 private:
-    struct rdma_event_channel *cm_event_channel{NULL};
-    struct rdma_cm_id *cm_client_id{NULL};
-    struct ibv_pd *pd{NULL};
-    struct ibv_comp_channel *io_completion_channel{NULL};
-    struct ibv_cq *client_cq{NULL};
-    struct ibv_qp *client_qp{NULL};
+    struct rdma_event_channel *cm_event_channel;
+    struct rdma_cm_id *cm_client_id;
+    struct ibv_pd *pd;
+    struct ibv_comp_channel *io_completion_channel;
+    struct ibv_cq *client_cq;
+    struct ibv_qp *client_qp;
 
-    struct ibv_mr *client_metadata_mr{NULL}, *client_src_mr{NULL},
-        *client_dst_mr{NULL}, *server_metadata_mr{NULL};
+    struct ibv_mr *client_metadata_mr, *client_src_mr,
+        *client_dst_mr, *server_metadata_mr;
+    struct ibv_send_wr client_send_wr, *bad_client_send_wr;
+    struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr;
+
     struct ibv_qp_init_attr qp_init_attr;
-    struct ibv_send_wr client_send_wr, *bad_client_send_wr{NULL};
-    struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr{NULL};
     struct rdma_buffer_attr client_metadata_attr, server_metadata_attr;
     struct ibv_sge client_send_sge, server_recv_sge;
 
 public:
+    RdmaClient()
+        : cm_event_channel(NULL),
+          cm_client_id(NULL),
+          pd(NULL),
+          io_completion_channel(NULL),
+          client_cq(NULL),
+          client_qp(NULL),
+          client_metadata_mr(NULL),
+          client_src_mr(NULL),
+          client_dst_mr(NULL),
+          server_metadata_mr(NULL),
+          bad_client_send_wr(NULL),
+          bad_server_recv_wr(NULL) {}
+
     int client_prepare_connection(struct sockaddr_in *s_addr);
     int client_pre_post_recv_buffer();
     int client_connect_to_server();
