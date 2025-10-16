@@ -184,6 +184,9 @@ public:
     int accept_client_connection();
     int send_server_metadata_to_client();
     int disconnect_and_cleanup();
+    int server_cleanup();
+
+    int handle_connect_event_block();
 };
 
 class SimpleBuffer {

@@ -51,11 +51,22 @@ int main(int argc, char **argv) {
         server_sockaddr.sin_port =
             htons(DEFAULT_RDMA_PORT); /* use default port */
     }
+    // Create necessary resource for a standby server.
     ret = rdmaServer.start_rdma_server(&server_sockaddr);
     if (ret) {
         rdma_error("RDMA server failed to start cleanly, ret = %d \n", ret);
         return ret;
     }
+
+    // Waiting for the connection event:
+    // * Get client-id from client connection.
+    // * Ack it.
+    ret = rdmaServer.handle_connect_event_block();
+    if (ret) {
+        rdma_error("Failed to setup client resources, ret = %d \n", ret);
+        return ret;
+    }
+
     ret = rdmaServer.setup_client_resources();
     if (ret) {
         rdma_error("Failed to setup client resources, ret = %d \n", ret);
@@ -74,7 +85,12 @@ int main(int argc, char **argv) {
     }
     ret = rdmaServer.disconnect_and_cleanup();
     if (ret) {
-        rdma_error("Failed to clean up resources properly, ret = %d \n", ret);
+        rdma_error("Failed to clean up resources for client properly, ret = %d \n", ret);
+        return ret;
+    }
+    ret = rdmaServer.server_cleanup();
+    if (ret) {
+        rdma_error("Failed to clean up resources for server properly, ret = %d \n", ret);
         return ret;
     }
     return 0;

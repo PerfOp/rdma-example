@@ -7,10 +7,65 @@
  * Brief:
  */
 #include "rdma_common.h"
+
+
+/* Step 1. Starts an RDMA server by allocating basic connection resources,
+ * which are standby resoruce for a server:
+ *   * cm_event_channel
+ *   * rdma_cm_id (cm_server_id), will bind with addr
+ * */
+int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
+    struct rdma_cm_event *cm_event = NULL;
+    int ret = -1;
+    /*  Open a channel used to report asynchronous communication event */
+    this->cm_event_channel = rdma_create_event_channel();
+    if (!this->cm_event_channel) {
+        rdma_error("Creating cm event channel failed with errno : (%d)",
+                   -errno);
+        return -errno;
+    }
+    debug("RDMA CM event channel is created successfully at %p \n",
+          cm_event_channel);
+    /* rdma_cm_id is the connection identifier (like socket) which is used
+     * to define an RDMA connection.
+     */
+    ret = rdma_create_id(this->cm_event_channel, &this->cm_server_id, NULL,
+                         RDMA_PS_TCP);
+    if (ret) {
+        rdma_error("Creating server cm id failed with errno: %d ", -errno);
+        return -errno;
+    }
+    debug("A RDMA connection id for the server is created \n");
+    /* Explicit binding of rdma cm id to the socket credentials */
+    ret = rdma_bind_addr(this->cm_server_id, (struct sockaddr *)server_addr);
+    if (ret) {
+        rdma_error("Failed to bind server address, errno: %d \n", -errno);
+        return -errno;
+    }
+    debug("Server RDMA CM id is successfully binded \n");
+    /* Now we start to listen on the passed IP and port. However unlike
+     * normal TCP listen, this is a non-blocking call. When a new client is
+     * connected, a new connection management (CM) event is generated on the
+     * RDMA CM event channel from where the listening id was created. Here we
+     * have only one channel, so it is easy. */
+    ret = rdma_listen(this->cm_server_id,
+                      8); /* backlog = 8 clients, same as TCP, see man listen*/
+    if (ret) {
+        rdma_error("rdma_listen failed to listen on server address, errno: %d ",
+                   -errno);
+        return -errno;
+    }
+    printf("Server is listening successfully at: %s , port: %d \n",
+           inet_ntoa(server_addr->sin_addr), ntohs(server_addr->sin_port));
+
+    return ret;
+}
+
 /* When we call this function rdmaServer.cm_client_id must be set to a valid
  * identifier. This is where, we prepare client connection before we accept it.
  * This mainly involve pre-posting a receive buffer to receive client side RDMA
  * credentials
+ * Creating client-wise resources for handling communication:
  */
 int RdmaServer::setup_client_resources() {
     int ret = -1;
@@ -109,50 +164,9 @@ int RdmaServer::setup_client_resources() {
     return ret;
 }
 
-/* Starts an RDMA server by allocating basic connection resources */
-int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
-    struct rdma_cm_event *cm_event = NULL;
+int RdmaServer::handle_connect_event_block(){
     int ret = -1;
-    /*  Open a channel used to report asynchronous communication event */
-    this->cm_event_channel = rdma_create_event_channel();
-    if (!this->cm_event_channel) {
-        rdma_error("Creating cm event channel failed with errno : (%d)",
-                   -errno);
-        return -errno;
-    }
-    debug("RDMA CM event channel is created successfully at %p \n",
-          cm_event_channel);
-    /* rdma_cm_id is the connection identifier (like socket) which is used
-     * to define an RDMA connection.
-     */
-    ret = rdma_create_id(this->cm_event_channel, &this->cm_server_id, NULL,
-                         RDMA_PS_TCP);
-    if (ret) {
-        rdma_error("Creating server cm id failed with errno: %d ", -errno);
-        return -errno;
-    }
-    debug("A RDMA connection id for the server is created \n");
-    /* Explicit binding of rdma cm id to the socket credentials */
-    ret = rdma_bind_addr(this->cm_server_id, (struct sockaddr *)server_addr);
-    if (ret) {
-        rdma_error("Failed to bind server address, errno: %d \n", -errno);
-        return -errno;
-    }
-    debug("Server RDMA CM id is successfully binded \n");
-    /* Now we start to listen on the passed IP and port. However unlike
-     * normal TCP listen, this is a non-blocking call. When a new client is
-     * connected, a new connection management (CM) event is generated on the
-     * RDMA CM event channel from where the listening id was created. Here we
-     * have only one channel, so it is easy. */
-    ret = rdma_listen(this->cm_server_id,
-                      8); /* backlog = 8 clients, same as TCP, see man listen*/
-    if (ret) {
-        rdma_error("rdma_listen failed to listen on server address, errno: %d ",
-                   -errno);
-        return -errno;
-    }
-    printf("Server is listening successfully at: %s , port: %d \n",
-           inet_ntoa(server_addr->sin_addr), ntohs(server_addr->sin_port));
+    struct rdma_cm_event *cm_event = NULL;
     /* now, we expect a client to connect and generate a
      * RDMA_CM_EVNET_CONNECT_REQUEST We wait (block) on the connection
      * management event channel for the connect event.
@@ -182,6 +196,7 @@ int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
           this->cm_client_id);
     return ret;
 }
+
 /* Pre-posts a receive buffer and accepts an RDMA client connection */
 int RdmaServer::accept_client_connection() {
     struct rdma_conn_param conn_param;
@@ -349,7 +364,22 @@ int RdmaServer::send_server_metadata_to_client() {
 }
 
 /* This is server side logic. Server passively waits for the client to call
- * rdma_disconnect() and then it will clean up its resources */
+ * rdma_disconnect() and then it will clean up its resources
+ *   Creation order:
+     * 1. Protection Domains (PD)
+     * 2. Memory Buffers
+     * 3. Completion Queues (CQ)
+     * 4. Queue Pair (QP)
+ *   Deletion order:
+     * 1. Queue Pair (QP)
+     * 2. cm_client_id
+     * 3. Completion Queues (CQ)
+     * 4. io_completion_channel
+     * 5. mr ? (multiple mrs)
+     * 6. pd
+     * 7. cm_server_id
+     * 8. cm_event_channel
+     * */
 int RdmaServer::disconnect_and_cleanup() {
     struct rdma_cm_event *cm_event = NULL;
     int ret = -1;
@@ -394,6 +424,27 @@ int RdmaServer::disconnect_and_cleanup() {
     rdma_buffer_free(this->server_buffer_mr);
     rdma_buffer_deregister(this->server_metadata_mr);
     rdma_buffer_deregister(this->client_metadata_mr);
+    // [> Destroy protection domain <]
+    // ret = ibv_dealloc_pd(this->pd);
+    // if (ret) {
+        // rdma_error("Failed to destroy client protection domain cleanly, %d \n",
+                   // -errno);
+        // // we continue anyways;
+    // }
+    // [> Destroy rdma server id <]
+    // ret = rdma_destroy_id(this->cm_server_id);
+    // if (ret) {
+        // rdma_error("Failed to destroy server id cleanly, %d \n", -errno);
+        // // we continue anyways;
+    // }
+    // rdma_destroy_event_channel(this->cm_event_channel);
+    // printf("Server shut-down is complete \n");
+    return 0;
+}
+
+int RdmaServer::server_cleanup() {
+    struct rdma_cm_event *cm_event = NULL;
+    int ret = -1;
     /* Destroy protection domain */
     ret = ibv_dealloc_pd(this->pd);
     if (ret) {
@@ -411,5 +462,3 @@ int RdmaServer::disconnect_and_cleanup() {
     printf("Server shut-down is complete \n");
     return 0;
 }
-
-
