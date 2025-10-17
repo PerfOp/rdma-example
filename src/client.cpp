@@ -92,15 +92,16 @@ int main(int argc, char **argv) {
         return ret;
     }
 
-    // for(int i=0;i<10;i++){
-        // spdlog::info("10");
+    for(int i=0;i<10;i++){
+        spdlog::info("{}th send", i);
+        *(char *)(recvReq.src)='a';
         ret = rdmaClient.client_remote_memory_ops(&recvRsp, recvReq.length);
         if (ret) {
             rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
             return ret;
         }
-        // sleep(1);
-    // }
+        sleep(1);
+    }
     // printf("begin checking...\n");
     // spdlog::info("{} {}", recvReq.length, recvRsp.length);
     if (check_src_dst(recvReq.src, recvRsp.src)) {

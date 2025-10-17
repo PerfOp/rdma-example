@@ -421,6 +421,7 @@ int RdmaServer::disconnect_and_cleanup() {
         // we continue anyways;
     }
     /* Destroy memory buffers */
+    spdlog::info("Mr data before disconnectted:{}", (char*)(this->server_buffer_mr->addr));
     rdma_buffer_free(this->server_buffer_mr);
     rdma_buffer_deregister(this->server_metadata_mr);
     rdma_buffer_deregister(this->client_metadata_mr);
