@@ -172,7 +172,8 @@ public:
         m_mr = rdma_buffer_register(m_pd, buf, m_size, permission);
         if (!m_mr) {
             rdma_error("Failed to create mr on buffer, errno: %d \n", -errno);
-            free(buf);
+            // free(buf);
+            delete []buf;
             return -1;
         }
         m_size = size;
@@ -212,7 +213,8 @@ public:
             return -1;
         }
         m_pd = pd;
-        void *buf = calloc(1, size);
+        //void *buf = calloc(1, size);
+        void *buf = new char[size];
         if (!buf) {
             rdma_error("failed to allocate buffer, -ENOMEM\n");
             return -1;
@@ -222,7 +224,8 @@ public:
         m_mr = rdma_buffer_register(m_pd, buf, m_size, permission);
         if (!m_mr) {
             rdma_error("Failed to create mr on buffer, errno: %d \n", -errno);
-            free(buf);
+            //free(buf);
+            delete []buf;
             return -1;
         }
         m_size = size;
@@ -239,7 +242,8 @@ public:
         void *to_free = m_mr->addr;
         rdma_buffer_deregister(m_mr);
         debug("Buffer %p free'ed\n", to_free);
-        free(to_free);
+        // free(to_free);
+        delete []to_free;
         return 0;
     }
 };
@@ -302,13 +306,15 @@ public:
     SimpleBuffer() : src(NULL), length(0)/*dst(NULL)*/ {}
     ~SimpleBuffer() {
         if (src) {
-            free(src);
+            // free(src);
+            delete []src;
             src = NULL;
         }
     }
 
     uint32_t Allocate(uint32_t size) {
-        src = calloc(size, 1);
+        // src = calloc(size, 1);
+        src = new char[size];
         if (src == nullptr) {
             rdma_error("Failed to allocate memory : -ENOMEM\n");
             return 0;
