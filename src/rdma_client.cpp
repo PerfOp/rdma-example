@@ -302,12 +302,12 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer* pBuf) {
  * 1) RDMA write from src -> remote buffer
  * 2) RDMA read from remote bufer -> dst
  */
-int RdmaClient::client_remote_memory_ops(SimpleBuffer* pBuf) {
+int RdmaClient::client_remote_memory_ops(SimpleBuffer* pBuf, uint32_t size) {
     struct ibv_wc wc;
     int ret = -1;
     int flags=IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
     this->client_dst_mr =
-        rdma_buffer_register(this->pd, pBuf->dst, strlen(pBuf->src),
+        rdma_buffer_register(this->pd, pBuf->src, size, //strlen(pBuf->src),
                              (ibv_access_flags)flags);
                              // (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ));
     if (!this->client_dst_mr) {

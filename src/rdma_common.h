@@ -295,19 +295,30 @@ public:
 class SimpleBuffer {
 public:
     char *src;
-    char *dst;
+    uint32_t length;
+    // char *dst;
 
 public:
-    SimpleBuffer() : src(NULL), dst(NULL) {}
+    SimpleBuffer() : src(NULL), length(0)/*dst(NULL)*/ {}
     ~SimpleBuffer() {
         if (src) {
             free(src);
             src = NULL;
         }
-        if (dst) {
-            free(dst);
-            dst = NULL;
+        // if (dst) {
+        // free(dst);
+        // dst = NULL;
+        // }
+    }
+
+    uint32_t Allocate(uint32_t size) {
+        src = calloc(size, 1);
+        if (src == nullptr) {
+            rdma_error("Failed to allocate memory : -ENOMEM\n");
+            return 0;
         }
+        length=size;
+        return size;
     }
 };
 
@@ -349,7 +360,7 @@ public:
     int client_pre_post_recv_buffer();
     int client_connect_to_server();
     int client_xchange_metadata_with_server(SimpleBuffer *pBuf);
-    int client_remote_memory_ops(SimpleBuffer *pBuf);
+    int client_remote_memory_ops(SimpleBuffer *pBuf, uint32_t size);
     int client_disconnect_and_clean(SimpleBuffer *pBuf);
 };
 

@@ -9,7 +9,8 @@
 /* These are basic RDMA resources */
 /* These are RDMA connection related resources */
 RdmaClient rdmaClient;
-SimpleBuffer recvBuf;
+SimpleBuffer recvReq;
+SimpleBuffer recvRsp;
 
 void usage() {
     spdlog::info("Usage:");
@@ -31,18 +32,21 @@ int main(int argc, char **argv) {
             case 's':
                 printf("Passed string is : %s , with count %u \n", optarg,
                        (unsigned int)strlen(optarg));
-                recvBuf.src = calloc(strlen(optarg), 1);
-                if (!recvBuf.src) {
+                //recvReq.src = calloc(strlen(optarg), 1);
+                recvReq.Allocate(strlen(optarg));
+                if (!recvReq.src) {
                     rdma_error("Failed to allocate memory : -ENOMEM\n");
                     return -ENOMEM;
                 }
                 /* Copy the passes arguments */
-                strncpy(recvBuf.src, optarg, strlen(optarg));
-                recvBuf.dst = calloc(strlen(optarg), 1);
-                if (!recvBuf.dst) {
+                strncpy(recvReq.src, optarg, strlen(optarg));
+
+                // recvRsp.src = calloc(strlen(optarg), 1);
+                recvRsp.Allocate(strlen(optarg));
+                if (!recvRsp.src) {
                     rdma_error(
                         "Failed to allocate destination memory, -ENOMEM\n");
-                    // free(recvBuf.src);
+                    // free(recvReq.src);
                     return -ENOMEM;
                 }
                 break;
@@ -67,7 +71,7 @@ int main(int argc, char **argv) {
         /* no port provided, use the default port */
         server_sockaddr.sin_port = htons(DEFAULT_RDMA_PORT);
     }
-    if (recvBuf.src == NULL) {
+    if (recvReq.src == NULL) {
         printf("Please provide a string to copy \n");
         usage();
     }
@@ -86,22 +90,22 @@ int main(int argc, char **argv) {
         rdma_error("Failed to setup client connection , ret = %d \n", ret);
         return ret;
     }
-    ret = rdmaClient.client_xchange_metadata_with_server(&recvBuf);
+    ret = rdmaClient.client_xchange_metadata_with_server(&recvReq);
     if (ret) {
         rdma_error("Failed to setup client connection , ret = %d \n", ret);
         return ret;
     }
-    ret = rdmaClient.client_remote_memory_ops(&recvBuf);
+    ret = rdmaClient.client_remote_memory_ops(&recvRsp, recvReq.length);
     if (ret) {
         rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
         return ret;
     }
-    if (check_src_dst(recvBuf.src, recvBuf.dst)) {
-        rdma_error("src and dst buffers do not match \n");
-    } else {
-        printf("...\nSUCCESS, source and destination buffers match \n");
+    // printf("begin checking...\n");
+    // spdlog::info("{} {}", recvReq.length, recvRsp.length);
+    if (check_src_dst(recvReq.src, recvRsp.src)) {
+        rdma_error("src and dst buffers do not match");
     }
-    ret = rdmaClient.client_disconnect_and_clean(&recvBuf);
+    ret = rdmaClient.client_disconnect_and_clean(&recvReq);
     if (ret) {
         rdma_error("Failed to cleanly disconnect and clean up resources \n");
     }
