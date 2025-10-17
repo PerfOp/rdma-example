@@ -362,7 +362,10 @@ public:
     int client_pre_post_recv_buffer();
     int client_connect_to_server();
     int client_xchange_metadata_with_server(SimpleBuffer *pBuf);
+
+    int client_register_data_mr(SimpleBuffer *pBuf, uint32_t size);
     int client_remote_memory_ops(SimpleBuffer *pBuf, uint32_t size);
+
     int client_disconnect_and_clean(SimpleBuffer *pBuf);
 };
 

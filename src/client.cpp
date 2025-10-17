@@ -85,11 +85,22 @@ int main(int argc, char **argv) {
         rdma_error("Failed to setup client connection , ret = %d \n", ret);
         return ret;
     }
-    ret = rdmaClient.client_remote_memory_ops(&recvRsp, recvReq.length);
+
+    ret = rdmaClient.client_register_data_mr(&recvRsp, recvReq.length);
     if (ret) {
-        rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
+        rdma_error("Failed to register local mr for writing, ret = %d \n", ret);
         return ret;
     }
+
+    // for(int i=0;i<10;i++){
+        // spdlog::info("10");
+        ret = rdmaClient.client_remote_memory_ops(&recvRsp, recvReq.length);
+        if (ret) {
+            rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
+            return ret;
+        }
+        // sleep(1);
+    // }
     // printf("begin checking...\n");
     // spdlog::info("{} {}", recvReq.length, recvRsp.length);
     if (check_src_dst(recvReq.src, recvRsp.src)) {
