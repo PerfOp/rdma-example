@@ -34,21 +34,11 @@ int main(int argc, char **argv) {
                        (unsigned int)strlen(optarg));
                 //recvReq.src = calloc(strlen(optarg), 1);
                 recvReq.Allocate(strlen(optarg));
-                if (!recvReq.src) {
-                    rdma_error("Failed to allocate memory : -ENOMEM\n");
-                    return -ENOMEM;
-                }
                 /* Copy the passes arguments */
                 strncpy(recvReq.src, optarg, strlen(optarg));
 
                 // recvRsp.src = calloc(strlen(optarg), 1);
                 recvRsp.Allocate(strlen(optarg));
-                if (!recvRsp.src) {
-                    rdma_error(
-                        "Failed to allocate destination memory, -ENOMEM\n");
-                    // free(recvReq.src);
-                    return -ENOMEM;
-                }
                 break;
             case 'a':
                 /* remember, this overwrites the port info */
