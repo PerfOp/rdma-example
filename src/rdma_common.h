@@ -305,10 +305,6 @@ public:
             free(src);
             src = NULL;
         }
-        // if (dst) {
-        // free(dst);
-        // dst = NULL;
-        // }
     }
 
     uint32_t Allocate(uint32_t size) {

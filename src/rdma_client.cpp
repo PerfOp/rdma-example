@@ -298,7 +298,7 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer* pBuf) {
 }
 
 /* This function does :
- * 1) Prepare memory buffers for RDMA operations
+ * * Prepare memory buffers for RDMA operations
  * 1) RDMA write from src -> remote buffer
  * 2) RDMA read from remote bufer -> dst
  */
