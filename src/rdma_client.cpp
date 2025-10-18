@@ -249,16 +249,22 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer *pBuf) {
     int ret = -1;
     int flags = (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
                  IBV_ACCESS_REMOTE_WRITE);
+    /*
     this->client_write_mr = rdma_buffer_register(
         this->pd, pBuf->src, strlen(pBuf->src), (ibv_access_flags)flags);
     if (!this->client_write_mr) {
         rdma_error("Failed to register the first buffer, ret = %d \n", ret);
         return ret;
     }
+    */
+    this->recvReq.Attach(this->pd, flags);
     /* we prepare metadata for the first buffer */
-    client_metadata_attr.address = (uint64_t)this->client_write_mr->addr;
-    client_metadata_attr.length = this->client_write_mr->length;
-    client_metadata_attr.stag.local_stag = this->client_write_mr->lkey;
+    // client_metadata_attr.address = (uint64_t)this->client_write_mr->addr;
+    // client_metadata_attr.length = this->client_write_mr->length;
+    // client_metadata_attr.stag.local_stag = this->client_write_mr->lkey;
+    client_metadata_attr.address = (uint64_t)this->recvReq.get_mr()->addr;
+    client_metadata_attr.length = this->recvReq.get_mr()->length;
+    client_metadata_attr.stag.local_stag = this->recvReq.get_mr()->lkey;
     /* now we register the metadata memory */
     this->client_metadata_mr = rdma_buffer_register(
         this->pd, &client_metadata_attr, sizeof(client_metadata_attr),
@@ -303,6 +309,7 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size) {
     int ret = -1;
     int flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
                 IBV_ACCESS_REMOTE_READ;
+    /*
     this->client_read_mr =
         rdma_buffer_register(this->pd, pBuf->src, size,  // strlen(pBuf->src),
                              (ibv_access_flags)flags);
@@ -311,7 +318,8 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size) {
     if (!this->client_read_mr) {
         rdma_error("We failed to create the destination buffer, -ENOMEM\n");
         return -ENOMEM;
-    }
+    }*/
+    this->recvRsp.Attach(this->pd, flags);
     return 0;
 }
 /* This function does :
@@ -326,9 +334,12 @@ int RdmaClient::client_remote_memory_write(
     /* Step 1: is to copy the local buffer into the remote buffer. We will
      * reuse the previous variables. */
     /* now we fill up SGE */
-    this->client_send_sge.addr = (uint64_t)this->client_write_mr->addr;
-    this->client_send_sge.length = (uint32_t)this->client_write_mr->length;
-    this->client_send_sge.lkey = this->client_write_mr->lkey;
+    // this->client_send_sge.addr = (uint64_t)this->client_write_mr->addr;
+    // this->client_send_sge.length = (uint32_t)this->client_write_mr->length;
+    // this->client_send_sge.lkey = this->client_write_mr->lkey;
+    this->client_send_sge.addr = (uint64_t)this->recvReq.get_mr()->addr;
+    this->client_send_sge.length = (uint32_t)this->recvReq.get_mr()->length;
+    this->client_send_sge.lkey = this->recvReq.get_mr()->lkey;
     /* now we link to the send work request */
     bzero(&this->client_send_wr, sizeof(this->client_send_wr));
     this->client_send_wr.sg_list = &this->client_send_sge;
@@ -360,9 +371,12 @@ int RdmaClient::client_remote_memory_read(
     struct ibv_wc wc;
     int ret = -1;
     /* Now we prepare a READ using same variables but for destination */
-    this->client_send_sge.addr = (uint64_t)this->client_read_mr->addr;
-    this->client_send_sge.length = (uint32_t)this->client_read_mr->length;
-    this->client_send_sge.lkey = this->client_read_mr->lkey;
+    // this->client_send_sge.addr = (uint64_t)this->client_read_mr->addr;
+    // this->client_send_sge.length = (uint32_t)this->client_read_mr->length;
+    // this->client_send_sge.lkey = this->client_read_mr->lkey;
+    this->client_send_sge.addr = (uint64_t)this->recvRsp.get_mr()->addr;
+    this->client_send_sge.length = (uint32_t)this->recvRsp.get_mr()->length;
+    this->client_send_sge.lkey = this->recvRsp.get_mr()->lkey;
     /* now we link to the send work request */
     bzero(&this->client_send_wr, sizeof(this->client_send_wr));
     this->client_send_wr.sg_list = &this->client_send_sge;
@@ -439,8 +453,10 @@ int RdmaClient::client_disconnect_and_clean(SimpleBuffer *pBuf) {
     /* Destroy memory buffers */
     rdma_buffer_deregister(this->server_metadata_mr);
     rdma_buffer_deregister(this->client_metadata_mr);
-    rdma_buffer_deregister(this->client_write_mr);
-    rdma_buffer_deregister(this->client_read_mr);
+    // rdma_buffer_deregister(this->client_write_mr);
+    this->recvReq.DeAttach();
+    // rdma_buffer_deregister(this->client_read_mr);
+    this->recvRsp.DeAttach();
     /* Destroy protection domain */
     ret = ibv_dealloc_pd(this->pd);
     if (ret) {
