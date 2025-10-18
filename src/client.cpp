@@ -68,6 +68,7 @@ int main(int argc, char **argv) {
     ret = rdmaClient.client_prepare_connection(&server_sockaddr);
     if (ret) {
         rdma_error("Failed to setup client connection , ret = %d \n", ret);
+        // spdlog::error("Failed to setup client connection:{}-{}\n", error, rdma_strerror(errno));
         return ret;
     }
     ret = rdmaClient.client_pre_post_recv_buffer();
@@ -95,7 +96,7 @@ int main(int argc, char **argv) {
     for(int i=0;i<10;i++){
         spdlog::info("{}th send", i);
         *(char *)(recvReq.src)='a';
-        ret = rdmaClient.client_remote_memory_ops(&recvRsp, recvReq.length);
+        ret = rdmaClient.client_remote_memory_ops(/*&recvRsp, recvReq.length*/);
         if (ret) {
             rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
             return ret;

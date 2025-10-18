@@ -31,6 +31,11 @@
     do {                                     \
         spdlog::error("{} {}", msg, ##args); \
     } while (0);
+
+#define rdma_cm_event_status(event, status, args...)             \
+    do {                                     \
+        spdlog::error("cm_event:{} - status:{}", rdma_event_str(event),strerror(-status), ##args); \
+    } while (0);
 // do {fprintf(stderr, "%s : %d : ERROR : %s\n", __FILE__, __LINE__, msg,
 // ##__VA_ARGS__);}while(0);
 //  fprintf(stderr, "%s : %d : ERROR : "msg, __FILE__, __LINE__, ## args);\
@@ -144,11 +149,11 @@ void terminate(int signal);
 // extern char *src, *dst;
 
 /* This is our testing function */
-int check_src_dst(char *src, char *dst);
+int check_src_dst(uint8_t *src, uint8_t *dst);
 
 class MemoryRegion {
 private:
-    void *m_pbuf;
+    uint8_t *m_pbuf;
     struct ibv_mr *m_mr;
     struct ibv_pd *m_pd;
     uint32_t m_size;
@@ -158,7 +163,7 @@ public:
     MemoryRegion() : m_size(0), m_pbuf(NULL), m_mr(NULL), m_pd(NULL) {}
     virtual ~MemoryRegion() {}
 
-    int Attach(const struct ibv_pd *pd, const void *buf, const uint32_t size,
+    int Attach(struct ibv_pd *pd, uint8_t *buf, const uint32_t size,
                enum ibv_access_flags permission) {
         if (!pd) {
             rdma_error("Protection domain is NULL \n");
@@ -205,7 +210,7 @@ public:
     virtual ~MemoryRegionAllocator() {}
     inline const struct ibv_mr *get_mr() { return m_mr; }
 
-    int Allocate(const struct ibv_pd *pd, const uint32_t size,
+    int Allocate(struct ibv_pd *pd, const uint32_t size,
                  enum ibv_access_flags permission) {
         // Create and init a memory region and register it with PD.
         if (!pd) {
@@ -214,7 +219,7 @@ public:
         }
         m_pd = pd;
         //void *buf = calloc(1, size);
-        void *buf = new char[size];
+        uint8_t *buf = new uint8_t[size];
         if (!buf) {
             rdma_error("failed to allocate buffer, -ENOMEM\n");
             return -1;
@@ -239,7 +244,7 @@ public:
             rdma_error("Passed memory region is NULL, ignoring\n");
             return -1;
         }
-        void *to_free = m_mr->addr;
+        uint8_t *to_free = static_cast<uint8_t *>(m_mr->addr);
         rdma_buffer_deregister(m_mr);
         debug("Buffer %p free'ed\n", to_free);
         // free(to_free);
@@ -298,7 +303,7 @@ public:
 
 class SimpleBuffer {
 public:
-    char *src;
+    uint8_t *src;
     uint32_t length;
     // char *dst;
 
@@ -314,7 +319,7 @@ public:
 
     uint32_t Allocate(uint32_t size) {
         // src = calloc(size, 1);
-        src = new char[size];
+        src = new uint8_t[size];
         if (src == nullptr) {
             rdma_error("Failed to allocate memory : -ENOMEM\n");
             return 0;
@@ -363,8 +368,14 @@ public:
     int client_connect_to_server();
     int client_xchange_metadata_with_server(SimpleBuffer *pBuf);
 
+    // Start:Sending apis for sending data
+    // Function: register data mr
     int client_register_data_mr(SimpleBuffer *pBuf, uint32_t size);
-    int client_remote_memory_ops(SimpleBuffer *pBuf, uint32_t size);
+    // Function: regular write to remote over RDMA, Only trigger remote write without the memcpy
+    int client_remote_memory_ops(/*SimpleBuffer *pBuf, uint32_t size*/);
+    // Function: regular write to remote over RDMA
+    // int client_remote_memory_ops_imm(SimpleBuffer *pBuf, uint32_t size);
+    // End:Sending apis for sending data
 
     int client_disconnect_and_clean(SimpleBuffer *pBuf);
 };

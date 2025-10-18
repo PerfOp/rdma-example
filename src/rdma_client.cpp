@@ -12,8 +12,8 @@
 // char *src = NULL, *dst = NULL;
 
 /* This is our testing function */
-int check_src_dst(char* src, char* dst) {
-    return memcmp((void *)src, (void *)dst, strlen(src));
+int check_src_dst(uint8_t* src, uint8_t* dst) {
+    return memcmp((void *)src, (void *)dst, strlen((const char*)src));
 }
 
 /* Step 1: This function prepares client side connection resources for
@@ -248,7 +248,7 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer* pBuf) {
     int ret = -1;
     this->client_src_mr =
         rdma_buffer_register(this->pd, pBuf->src, strlen(pBuf->src),
-                             (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
+                             (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
                               IBV_ACCESS_REMOTE_WRITE));
     if (!this->client_src_mr) {
         rdma_error("Failed to register the first buffer, ret = %d \n", ret);
@@ -316,20 +316,9 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size){
  * 1) RDMA write from src -> remote buffer
  * 2) RDMA read from remote bufer -> dst
  */
-int RdmaClient::client_remote_memory_ops(SimpleBuffer* pBuf, uint32_t size) {
+int RdmaClient::client_remote_memory_ops(/*SimpleBuffer* pBuf, uint32_t size*/) {
     struct ibv_wc wc;
     int ret = -1;
-    /*
-    int flags=IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
-    this->client_dst_mr =
-        rdma_buffer_register(this->pd, pBuf->src, size, //strlen(pBuf->src),
-                             (ibv_access_flags)flags);
-                             // (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ));
-    if (!this->client_dst_mr) {
-        rdma_error("We failed to create the destination buffer, -ENOMEM\n");
-        return -ENOMEM;
-    }
-    */
     /* Step 1: is to copy the local buffer into the remote buffer. We will
      * reuse the previous variables. */
     /* now we fill up SGE */
