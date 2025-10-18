@@ -316,7 +316,7 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size){
  * 1) RDMA write from src -> remote buffer
  * 2) RDMA read from remote bufer -> dst
  */
-int RdmaClient::client_remote_memory_ops(/*SimpleBuffer* pBuf, uint32_t size*/) {
+int RdmaClient::client_remote_memory_write(/*SimpleBuffer* pBuf, uint32_t size*/) {
     struct ibv_wc wc;
     int ret = -1;
     /* Step 1: is to copy the local buffer into the remote buffer. We will
@@ -348,6 +348,12 @@ int RdmaClient::client_remote_memory_ops(/*SimpleBuffer* pBuf, uint32_t size*/) 
         return ret;
     }
     debug("Client side WRITE is complete \n");
+    return 0;
+}
+
+int RdmaClient::client_remote_memory_read(/*SimpleBuffer* pBuf, uint32_t size*/) {
+    struct ibv_wc wc;
+    int ret = -1;
     /* Now we prepare a READ using same variables but for destination */
     this->client_send_sge.addr = (uint64_t)this->client_dst_mr->addr;
     this->client_send_sge.length = (uint32_t)this->client_dst_mr->length;

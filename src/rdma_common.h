@@ -372,7 +372,8 @@ public:
     // Function: register data mr
     int client_register_data_mr(SimpleBuffer *pBuf, uint32_t size);
     // Function: regular write to remote over RDMA, Only trigger remote write without the memcpy
-    int client_remote_memory_ops(/*SimpleBuffer *pBuf, uint32_t size*/);
+    int client_remote_memory_write(/*SimpleBuffer *pBuf, uint32_t size*/);
+    int client_remote_memory_read(/*SimpleBuffer *pBuf, uint32_t size*/);
     // Function: regular write to remote over RDMA
     // int client_remote_memory_ops_imm(SimpleBuffer *pBuf, uint32_t size);
     // End:Sending apis for sending data
