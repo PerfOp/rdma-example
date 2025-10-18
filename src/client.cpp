@@ -81,12 +81,14 @@ int main(int argc, char **argv) {
         rdma_error("Failed to setup client connection , ret = %d \n", ret);
         return ret;
     }
+    // Create MR for writing and bind with req buffer
     ret = rdmaClient.client_xchange_metadata_with_server(&recvReq);
     if (ret) {
         rdma_error("Failed to setup client connection , ret = %d \n", ret);
         return ret;
     }
 
+    // Create MR for reading and bind with rsp buffer
     ret = rdmaClient.client_register_data_mr(&recvRsp, recvReq.length);
     if (ret) {
         rdma_error("Failed to register local mr for writing, ret = %d \n", ret);

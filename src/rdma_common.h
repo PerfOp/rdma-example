@@ -338,8 +338,11 @@ private:
     struct ibv_cq *client_cq;
     struct ibv_qp *client_qp;
 
-    struct ibv_mr *client_metadata_mr, *client_src_mr, *client_dst_mr,
-        *server_metadata_mr;
+    struct ibv_mr *client_metadata_mr, *server_metadata_mr;
+    // Used for RDMA-write
+    struct ibv_mr *client_write_mr;
+    // Used for RDMA-read
+    struct ibv_mr *client_read_mr;
     struct ibv_send_wr client_send_wr, *bad_client_send_wr;
     struct ibv_recv_wr server_recv_wr, *bad_server_recv_wr;
 
@@ -357,8 +360,8 @@ public:
           client_cq(NULL),
           client_qp(NULL),
           client_metadata_mr(NULL),
-          client_src_mr(NULL),
-          client_dst_mr(NULL),
+          client_write_mr(NULL),
+          client_read_mr(NULL),
           server_metadata_mr(NULL),
           bad_client_send_wr(NULL),
           bad_server_recv_wr(NULL) {}

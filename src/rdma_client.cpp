@@ -12,8 +12,8 @@
 // char *src = NULL, *dst = NULL;
 
 /* This is our testing function */
-int check_src_dst(uint8_t* src, uint8_t* dst) {
-    return memcmp((void *)src, (void *)dst, strlen((const char*)src));
+int check_src_dst(uint8_t *src, uint8_t *dst) {
+    return memcmp((void *)src, (void *)dst, strlen((const char *)src));
 }
 
 /* Step 1: This function prepares client side connection resources for
@@ -179,7 +179,8 @@ int RdmaClient::client_prepare_connection(struct sockaddr_in *s_addr) {
 }
 
 /* Step 2: Pre-posts a receive buffer before calling rdma_connect ()
- * 1) register MR for storing server_metadata (Data structure: server_metadata_attr)
+ * 1) register MR for storing server_metadata (Data structure:
+ * server_metadata_attr)
  * */
 int RdmaClient::client_pre_post_recv_buffer() {
     int ret = -1;
@@ -243,21 +244,21 @@ int RdmaClient::client_connect_to_server() {
  * used because this program is client driven. But it shown here how to do it
  * for the illustration purposes
  */
-int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer* pBuf) {
+int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer *pBuf) {
     struct ibv_wc wc[2];
     int ret = -1;
-    this->client_src_mr =
-        rdma_buffer_register(this->pd, pBuf->src, strlen(pBuf->src),
-                             (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
-                              IBV_ACCESS_REMOTE_WRITE));
-    if (!this->client_src_mr) {
+    int flags = (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
+                 IBV_ACCESS_REMOTE_WRITE);
+    this->client_write_mr = rdma_buffer_register(
+        this->pd, pBuf->src, strlen(pBuf->src), (ibv_access_flags)flags);
+    if (!this->client_write_mr) {
         rdma_error("Failed to register the first buffer, ret = %d \n", ret);
         return ret;
     }
     /* we prepare metadata for the first buffer */
-    client_metadata_attr.address = (uint64_t)this->client_src_mr->addr;
-    client_metadata_attr.length = this->client_src_mr->length;
-    client_metadata_attr.stag.local_stag = this->client_src_mr->lkey;
+    client_metadata_attr.address = (uint64_t)this->client_write_mr->addr;
+    client_metadata_attr.length = this->client_write_mr->length;
+    client_metadata_attr.stag.local_stag = this->client_write_mr->lkey;
     /* now we register the metadata memory */
     this->client_metadata_mr = rdma_buffer_register(
         this->pd, &client_metadata_attr, sizeof(client_metadata_attr),
@@ -297,15 +298,17 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer* pBuf) {
     return 0;
 }
 
-int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size){
+int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size) {
     // struct ibv_wc wc;
     int ret = -1;
-    int flags=IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ;
-    this->client_dst_mr =
-        rdma_buffer_register(this->pd, pBuf->src, size, //strlen(pBuf->src),
+    int flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
+                IBV_ACCESS_REMOTE_READ;
+    this->client_read_mr =
+        rdma_buffer_register(this->pd, pBuf->src, size,  // strlen(pBuf->src),
                              (ibv_access_flags)flags);
-                             // (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE | IBV_ACCESS_REMOTE_READ));
-    if (!this->client_dst_mr) {
+    // (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
+    // IBV_ACCESS_REMOTE_READ));
+    if (!this->client_read_mr) {
         rdma_error("We failed to create the destination buffer, -ENOMEM\n");
         return -ENOMEM;
     }
@@ -316,15 +319,16 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size){
  * 1) RDMA write from src -> remote buffer
  * 2) RDMA read from remote bufer -> dst
  */
-int RdmaClient::client_remote_memory_write(/*SimpleBuffer* pBuf, uint32_t size*/) {
+int RdmaClient::client_remote_memory_write(
+    /*SimpleBuffer* pBuf, uint32_t size*/) {
     struct ibv_wc wc;
     int ret = -1;
     /* Step 1: is to copy the local buffer into the remote buffer. We will
      * reuse the previous variables. */
     /* now we fill up SGE */
-    this->client_send_sge.addr = (uint64_t)this->client_src_mr->addr;
-    this->client_send_sge.length = (uint32_t)this->client_src_mr->length;
-    this->client_send_sge.lkey = this->client_src_mr->lkey;
+    this->client_send_sge.addr = (uint64_t)this->client_write_mr->addr;
+    this->client_send_sge.length = (uint32_t)this->client_write_mr->length;
+    this->client_send_sge.lkey = this->client_write_mr->lkey;
     /* now we link to the send work request */
     bzero(&this->client_send_wr, sizeof(this->client_send_wr));
     this->client_send_wr.sg_list = &this->client_send_sge;
@@ -351,13 +355,14 @@ int RdmaClient::client_remote_memory_write(/*SimpleBuffer* pBuf, uint32_t size*/
     return 0;
 }
 
-int RdmaClient::client_remote_memory_read(/*SimpleBuffer* pBuf, uint32_t size*/) {
+int RdmaClient::client_remote_memory_read(
+    /*SimpleBuffer* pBuf, uint32_t size*/) {
     struct ibv_wc wc;
     int ret = -1;
     /* Now we prepare a READ using same variables but for destination */
-    this->client_send_sge.addr = (uint64_t)this->client_dst_mr->addr;
-    this->client_send_sge.length = (uint32_t)this->client_dst_mr->length;
-    this->client_send_sge.lkey = this->client_dst_mr->lkey;
+    this->client_send_sge.addr = (uint64_t)this->client_read_mr->addr;
+    this->client_send_sge.length = (uint32_t)this->client_read_mr->length;
+    this->client_send_sge.lkey = this->client_read_mr->lkey;
     /* now we link to the send work request */
     bzero(&this->client_send_wr, sizeof(this->client_send_wr));
     this->client_send_wr.sg_list = &this->client_send_sge;
@@ -389,7 +394,7 @@ int RdmaClient::client_remote_memory_read(/*SimpleBuffer* pBuf, uint32_t size*/)
 /* This function disconnects the RDMA connection from the server and cleans up
  * all the resources.
  */
-int RdmaClient::client_disconnect_and_clean(SimpleBuffer* pBuf) {
+int RdmaClient::client_disconnect_and_clean(SimpleBuffer *pBuf) {
     struct rdma_cm_event *cm_event = NULL;
     int ret = -1;
     /* active disconnect from the client side */
@@ -434,8 +439,8 @@ int RdmaClient::client_disconnect_and_clean(SimpleBuffer* pBuf) {
     /* Destroy memory buffers */
     rdma_buffer_deregister(this->server_metadata_mr);
     rdma_buffer_deregister(this->client_metadata_mr);
-    rdma_buffer_deregister(this->client_src_mr);
-    rdma_buffer_deregister(this->client_dst_mr);
+    rdma_buffer_deregister(this->client_write_mr);
+    rdma_buffer_deregister(this->client_read_mr);
     /* Destroy protection domain */
     ret = ibv_dealloc_pd(this->pd);
     if (ret) {
