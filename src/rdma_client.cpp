@@ -254,6 +254,7 @@ int RdmaClient::client_connect_to_server() {
 int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer *pBuf) {
     struct ibv_wc wc[2];
     int ret = -1;
+    // 1. Prepare the SimpleBuffer for request
     int flags = (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
                  IBV_ACCESS_REMOTE_WRITE);
     /*
@@ -269,35 +270,21 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer *pBuf) {
     // client_metadata_attr.address = (uint64_t)this->client_write_mr->addr;
     // client_metadata_attr.length = this->client_write_mr->length;
     // client_metadata_attr.stag.local_stag = this->client_write_mr->lkey;
-    client_metadata_attr.address = (uint64_t)this->recvReq.get_mr()->addr;
-    client_metadata_attr.length = this->recvReq.get_mr()->length;
-    client_metadata_attr.stag.local_stag = this->recvReq.get_mr()->lkey;
-    /* now we register the metadata memory */
-    this->client_metadata_mr = rdma_buffer_register(
-        this->pd, &client_metadata_attr, sizeof(client_metadata_attr),
-        IBV_ACCESS_LOCAL_WRITE);
-    if (!this->client_metadata_mr) {
-        rdma_error("Failed to register the client metadata buffer, ret = %d \n",
-                   ret);
-        return ret;
-    }
-    /* now we fill up SGE */
-    this->client_send_sge.addr = (uint64_t)this->client_metadata_mr->addr;
-    this->client_send_sge.length = (uint32_t)this->client_metadata_mr->length;
-    this->client_send_sge.lkey = this->client_metadata_mr->lkey;
-    /* now we link to the send work request */
-    bzero(&this->client_send_wr, sizeof(this->client_send_wr));
-    this->client_send_wr.sg_list = &this->client_send_sge;
-    this->client_send_wr.num_sge = 1;
-    this->client_send_wr.opcode = IBV_WR_SEND;
-    this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
-    /* Now we post it */
-    ret = ibv_post_send(this->client_qp, &this->client_send_wr,
-                        &this->bad_client_send_wr);
-    if (ret) {
-        rdma_error("Failed to send client metadata, errno: %d \n", -errno);
-        return -errno;
-    }
+
+    // 2. Prepare the SimpleBuffer for metadata of remote mr
+    // 2.1 Allocate memory and init it with client metadata
+    clientMeta.Allocate(sizeof(struct RdmaBufferAttr));
+    client_metadata_attr = (struct RdmaBufferAttr*)(clientMeta.get_buf());
+
+    client_metadata_attr->address = (uint64_t)this->recvReq.get_mr()->addr;
+    client_metadata_attr->length = this->recvReq.get_mr()->length;
+    client_metadata_attr->stag.local_stag = this->recvReq.get_mr()->lkey;
+
+    // Init the mr
+    clientMeta.Attach(this->pd, IBV_ACCESS_LOCAL_WRITE);
+    // Sending the request for exchanging the metadata
+    this->clientMeta.remote_msg(this->client_qp, IBV_WR_SEND);
+
     /* at this point we are expecting 2 work completion. One for our
      * send and one for recv that we will get from the server for
      * its buffer information */
@@ -392,7 +379,8 @@ int RdmaClient::client_disconnect_and_clean(SimpleBuffer *pBuf) {
     }
     /* Destroy memory buffers */
     rdma_buffer_deregister(this->server_metadata_mr);
-    rdma_buffer_deregister(this->client_metadata_mr);
+    // rdma_buffer_deregister(this->client_metadata_mr);
+    this->clientMeta.DeAttach();
     // rdma_buffer_deregister(this->client_write_mr);
     this->recvReq.DeAttach();
     // rdma_buffer_deregister(this->client_read_mr);

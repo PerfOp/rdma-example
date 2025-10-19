@@ -180,6 +180,7 @@ public:
     }
 
     inline const struct ibv_mr *get_mr() { return m_mr; }
+    inline const uint8_t *get_buf() { return pbuf; }
 
     uint32_t Allocate(uint32_t size) {
         // src = calloc(size, 1);
@@ -199,6 +200,26 @@ public:
     int remote_read(const struct ibv_qp *client_qp,
                     const struct RdmaBufferAttr &server_metadata_attr) {
         return remote_ops(client_qp, server_metadata_attr, IBV_WR_RDMA_READ);
+    }
+
+    int remote_msg(const struct ibv_qp *client_qp, enum ibv_wr_opcode opcode) {
+        int ret = -1;
+        send_sge.addr = (uint64_t)m_mr->addr;
+        send_sge.length = (uint32_t)m_mr->length;
+        send_sge.lkey = m_mr->lkey;
+        /* now we link to the send work request */
+        bzero(&this->client_send_wr, sizeof(this->client_send_wr));
+        this->client_send_wr.sg_list = &this->send_sge;
+        this->client_send_wr.num_sge = 1;
+        this->client_send_wr.opcode = opcode;
+        this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
+        /* Now we post it */
+        ret = ibv_post_send(client_qp, &client_send_wr, &bad_client_send_wr);
+        if (ret) {
+            rdma_error("Failed to send client metadata, errno: %d \n", -errno);
+            return -errno;
+        }
+        return;
     }
 
 private:
@@ -232,7 +253,6 @@ private:
             return -errno;
         }
         return 0;
-
     }
 
 public:
@@ -336,7 +356,7 @@ private:
     struct ibv_cq *client_cq;
     struct ibv_qp *client_qp;
 
-    struct ibv_mr *client_metadata_mr, *server_metadata_mr;
+    struct ibv_mr /**client_metadata_mr,*/ *server_metadata_mr;
     // Used for RDMA-write
     // struct ibv_mr *client_write_mr;
     // Used for RDMA-read
@@ -348,9 +368,14 @@ private:
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_sge client_send_sge, server_recv_sge;
 
-    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
+    struct RdmaBufferAttr /*client_metadata_attr,*/ server_metadata_attr;
+    struct RdmaBufferAttr *client_metadata_attr;
 
 public:
+    // Used for RDMA-write
+    SimpleBuffer clientMeta;
+    SimpleBuffer serverMeta;
+
     // Used for RDMA-write
     SimpleBuffer recvReq;
     // Used for RDMA-read
@@ -364,7 +389,7 @@ public:
           io_completion_channel(nullptr),
           client_cq(nullptr),
           client_qp(nullptr),
-          client_metadata_mr(nullptr),
+          // client_metadata_mr(nullptr),
           // client_write_mr(nullptr),
           // client_read_mr(nullptr),
           server_metadata_mr(nullptr),
