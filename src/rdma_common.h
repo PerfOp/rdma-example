@@ -157,9 +157,9 @@ private:
     struct ibv_mr *m_mr;
 
 public:
-    // struct ibv_recv_wr recv_wr, *bad_recv_wr;
-    // struct ibv_send_wr send_wr, *bad_send_wr;
-    struct ibv_sge send_sge, recv_sge;
+    struct ibv_recv_wr client_recv_wr, *bad_client_recv_wr;
+    struct ibv_send_wr client_send_wr, *bad_client_send_wr;
+    struct ibv_sge client_send_sge, client_recv_sge;
     uint8_t *src;
     uint32_t length;
 
@@ -192,12 +192,54 @@ public:
         return size;
     }
 
-    void bind_send_sge(){
-        send_sge.addr = (uint64_t)m_mr->addr;
-        send_sge.length = (uint32_t)m_mr->length;
-        send_sge.lkey = m_mr->lkey;
+    int remote_write(const struct ibv_qp *client_qp,
+                     const struct RdmaBufferAttr &server_metadata_attr) {
+        return remote_ops(client_qp, server_metadata_attr, IBV_WR_RDMA_WRITE);
+    }
+    int remote_read(const struct ibv_qp *client_qp,
+                    const struct RdmaBufferAttr &server_metadata_attr) {
+        return remote_ops(client_qp, server_metadata_attr, IBV_WR_RDMA_READ);
     }
 
+private:
+    int remote_ops(const struct ibv_qp *client_qp,
+                   const struct RdmaBufferAttr &server_metadata_attr,
+                   enum ibv_wr_opcode opcode) {
+        struct ibv_wc wc;
+        int ret = -1;
+        /* Now we prepare a READ using same variables but for destination */
+        // this->client_send_sge.addr = (uint64_t)this->client_read_mr->addr;
+        // this->client_send_sge.length =
+        // (uint32_t)this->client_read_mr->length; this->client_send_sge.lkey =
+        // this->client_read_mr->lkey;
+        client_send_sge.addr = (uint64_t)m_mr->addr;
+        client_send_sge.length = (uint32_t)m_mr->length;
+        client_send_sge.lkey = m_mr->lkey;
+        /* now we link to the send work request */
+        bzero(&this->client_send_wr, sizeof(this->client_send_wr));
+        this->client_send_wr.sg_list = &this->client_send_sge;
+        this->client_send_wr.num_sge = 1;
+        this->client_send_wr.opcode = opcode;
+        this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
+        /* we have to tell server side info for RDMA */
+        this->client_send_wr.wr.rdma.rkey =
+            server_metadata_attr.stag.remote_stag;
+        this->client_send_wr.wr.rdma.remote_addr = server_metadata_attr.address;
+        /* Now we post it */
+        ret = ibv_post_send(client_qp, &this->client_send_wr,
+                            &this->bad_client_send_wr);
+        if (ret) {
+            rdma_error(
+                "Failed to read client dst buffer from the master, errno: %d "
+                "\n",
+                -errno);
+            return -errno;
+        }
+        return 0;
+
+    }
+
+public:
     int Attach(struct ibv_pd *pd, enum ibv_access_flags permission) {
         if (!pd) {
             rdma_error("Protection domain is NULL \n");
@@ -286,11 +328,13 @@ public:
 };
 
 class RdmaClient {
+public:
+    struct ibv_comp_channel *io_completion_channel;
+
 private:
     struct rdma_event_channel *cm_event_channel;
     struct rdma_cm_id *cm_client_id;
     struct ibv_pd *pd;
-    struct ibv_comp_channel *io_completion_channel;
     struct ibv_cq *client_cq;
     struct ibv_qp *client_qp;
 
@@ -344,6 +388,8 @@ public:
     // Function: regular write to remote over RDMA
     // int client_remote_memory_ops_imm(SimpleBuffer *pBuf, uint32_t size);
     // End:Sending apis for sending data
+
+    int block_check_io_complete();
 
     int client_disconnect_and_clean(SimpleBuffer *pBuf);
 };

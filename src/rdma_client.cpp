@@ -327,35 +327,13 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size) {
  * 1) RDMA write from src -> remote buffer
  * 2) RDMA read from remote bufer -> dst
  */
-int RdmaClient::client_remote_memory_write(
-    /*SimpleBuffer* pBuf, uint32_t size*/) {
+int RdmaClient::client_remote_memory_write(){
+    return recvReq.remote_write(this->client_qp, server_metadata_attr) ;
+}
+
+int RdmaClient::block_check_io_complete(){
     struct ibv_wc wc;
     int ret = -1;
-    /* Step 1: is to copy the local buffer into the remote buffer. We will
-     * reuse the previous variables. */
-    /* now we fill up SGE */
-    // this->client_send_sge.addr = (uint64_t)this->client_write_mr->addr;
-    // this->client_send_sge.length = (uint32_t)this->client_write_mr->length;
-    // this->client_send_sge.lkey = this->client_write_mr->lkey;
-    this->client_send_sge.addr = (uint64_t)this->recvReq.get_mr()->addr;
-    this->client_send_sge.length = (uint32_t)this->recvReq.get_mr()->length;
-    this->client_send_sge.lkey = this->recvReq.get_mr()->lkey;
-    /* now we link to the send work request */
-    bzero(&this->client_send_wr, sizeof(this->client_send_wr));
-    this->client_send_wr.sg_list = &this->client_send_sge;
-    this->client_send_wr.num_sge = 1;
-    this->client_send_wr.opcode = IBV_WR_RDMA_WRITE;
-    this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
-    /* we have to tell server side info for RDMA */
-    this->client_send_wr.wr.rdma.rkey = server_metadata_attr.stag.remote_stag;
-    this->client_send_wr.wr.rdma.remote_addr = server_metadata_attr.address;
-    /* Now we post it */
-    ret = ibv_post_send(this->client_qp, &this->client_send_wr,
-                        &this->bad_client_send_wr);
-    if (ret) {
-        rdma_error("Failed to write client src buffer, errno: %d \n", -errno);
-        return -errno;
-    }
     /* at this point we are expecting 1 work completion for the write */
     ret = process_work_completion_events(this->io_completion_channel, &wc, 1);
     if (ret != 1) {
@@ -366,43 +344,8 @@ int RdmaClient::client_remote_memory_write(
     return 0;
 }
 
-int RdmaClient::client_remote_memory_read(
-    /*SimpleBuffer* pBuf, uint32_t size*/) {
-    struct ibv_wc wc;
-    int ret = -1;
-    /* Now we prepare a READ using same variables but for destination */
-    // this->client_send_sge.addr = (uint64_t)this->client_read_mr->addr;
-    // this->client_send_sge.length = (uint32_t)this->client_read_mr->length;
-    // this->client_send_sge.lkey = this->client_read_mr->lkey;
-    this->client_send_sge.addr = (uint64_t)this->recvRsp.get_mr()->addr;
-    this->client_send_sge.length = (uint32_t)this->recvRsp.get_mr()->length;
-    this->client_send_sge.lkey = this->recvRsp.get_mr()->lkey;
-    /* now we link to the send work request */
-    bzero(&this->client_send_wr, sizeof(this->client_send_wr));
-    this->client_send_wr.sg_list = &this->client_send_sge;
-    this->client_send_wr.num_sge = 1;
-    this->client_send_wr.opcode = IBV_WR_RDMA_READ;
-    this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
-    /* we have to tell server side info for RDMA */
-    this->client_send_wr.wr.rdma.rkey = server_metadata_attr.stag.remote_stag;
-    this->client_send_wr.wr.rdma.remote_addr = server_metadata_attr.address;
-    /* Now we post it */
-    ret = ibv_post_send(this->client_qp, &this->client_send_wr,
-                        &this->bad_client_send_wr);
-    if (ret) {
-        rdma_error(
-            "Failed to read client dst buffer from the master, errno: %d \n",
-            -errno);
-        return -errno;
-    }
-    /* at this point we are expecting 1 work completion for the write */
-    ret = process_work_completion_events(this->io_completion_channel, &wc, 1);
-    if (ret != 1) {
-        rdma_error("We failed to get 1 work completions , ret = %d \n", ret);
-        return ret;
-    }
-    debug("Client side READ is complete \n");
-    return 0;
+int RdmaClient::client_remote_memory_read(){
+    return recvRsp.remote_read(this->client_qp, server_metadata_attr) ;
 }
 
 /* This function disconnects the RDMA connection from the server and cleans up

@@ -38,9 +38,9 @@ int main(int argc, char **argv) {
                         return false;  // 超出 uint32 范围
                     }
                     bufSize = static_cast<uint32_t>(val);
-                } catch(const std::invalid_argument&){
+                } catch (const std::invalid_argument &) {
                     usage();
-                } catch(const std::invalid_argument&){
+                } catch (const std::invalid_argument &) {
                     usage();
                 }
 
@@ -104,7 +104,8 @@ int main(int argc, char **argv) {
     }
 
     // Create MR for reading and bind with rsp buffer
-    ret = rdmaClient.client_register_data_mr(&(rdmaClient.recvRsp), rdmaClient.recvReq.length);
+    ret = rdmaClient.client_register_data_mr(&(rdmaClient.recvRsp),
+                                             rdmaClient.recvReq.length);
     if (ret) {
         rdma_error("Failed to register local mr for writing, ret = %d \n", ret);
         return ret;
@@ -113,19 +114,22 @@ int main(int argc, char **argv) {
     for (int i = 0; i < 10; i++) {
         spdlog::info("{}th send", i);
         *(char *)(rdmaClient.recvReq.src) = 'a';
-        *(char *)(rdmaClient.recvReq.src+1) = 'a';
+        *(char *)(rdmaClient.recvReq.src + 1) = 'a';
         ret =
-            rdmaClient.client_remote_memory_write(/*&recvRsp, recvReq.length*/);
+            rdmaClient.client_remote_memory_write();
         if (ret) {
             rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
             return ret;
         }
+        rdmaClient.block_check_io_complete();
         sleep(1);
     }
-    ret = rdmaClient.client_remote_memory_read(/*&recvRsp, recvReq.length*/);
+    ret = rdmaClient.client_remote_memory_read();
     if (ret) {
         rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
     }
+    rdmaClient.block_check_io_complete();
+
     if (check_src_dst(rdmaClient.recvReq.src, rdmaClient.recvRsp.src)) {
         rdma_error("src and dst buffers do not match");
     }
