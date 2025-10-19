@@ -159,7 +159,7 @@ private:
 public:
     struct ibv_recv_wr client_recv_wr, *bad_client_recv_wr;
     struct ibv_send_wr client_send_wr, *bad_client_send_wr;
-    struct ibv_sge client_send_sge, client_recv_sge;
+    struct ibv_sge send_sge, client_recv_sge;
     uint8_t *src;
     uint32_t length;
 
@@ -208,16 +208,12 @@ private:
         struct ibv_wc wc;
         int ret = -1;
         /* Now we prepare a READ using same variables but for destination */
-        // this->client_send_sge.addr = (uint64_t)this->client_read_mr->addr;
-        // this->client_send_sge.length =
-        // (uint32_t)this->client_read_mr->length; this->client_send_sge.lkey =
-        // this->client_read_mr->lkey;
-        client_send_sge.addr = (uint64_t)m_mr->addr;
-        client_send_sge.length = (uint32_t)m_mr->length;
-        client_send_sge.lkey = m_mr->lkey;
+        send_sge.addr = (uint64_t)m_mr->addr;
+        send_sge.length = (uint32_t)m_mr->length;
+        send_sge.lkey = m_mr->lkey;
         /* now we link to the send work request */
         bzero(&this->client_send_wr, sizeof(this->client_send_wr));
-        this->client_send_wr.sg_list = &this->client_send_sge;
+        this->client_send_wr.sg_list = &this->send_sge;
         this->client_send_wr.num_sge = 1;
         this->client_send_wr.opcode = opcode;
         this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
@@ -329,10 +325,12 @@ public:
 
 class RdmaClient {
 public:
+    // IO channel
     struct ibv_comp_channel *io_completion_channel;
+    // RDMA_CM channel
+    struct rdma_event_channel *cm_event_channel;
 
 private:
-    struct rdma_event_channel *cm_event_channel;
     struct rdma_cm_id *cm_client_id;
     struct ibv_pd *pd;
     struct ibv_cq *client_cq;
@@ -378,6 +376,7 @@ public:
     int client_connect_to_server();
     int client_xchange_metadata_with_server(SimpleBuffer *pBuf);
 
+    int client_prepare_qp(void);
     // Start:Sending apis for sending data
     // Function: register data mr
     int client_register_data_mr(SimpleBuffer *pBuf, uint32_t size);

@@ -115,9 +115,9 @@ int process_rdma_cm_event(struct rdma_event_channel *echannel,
     if (0 != (*cm_event)->status) {
         rdma_cm_event_status((*cm_event)->event, -(*cm_event)->status);
         // rdma_error("CM event {}",
-                   // rdma_event_str((*cm_event)->event));
+        // rdma_event_str((*cm_event)->event));
         // rdma_error("CM event status: {}",
-                   // strerror(((*cm_event)->status)));
+        // strerror(((*cm_event)->status)));
         // spdlog::warn("RDMA CM Event: {} status {}",
         // rdma_event_str((*cm_event)->event),strerror(-(*cm_event)->status));
         ret = -((*cm_event)->status);
@@ -187,6 +187,9 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel,
                        ibv_wc_status_str(wc[i].status), i);
             /* return negative value */
             return -(wc[i].status);
+        } else {
+            spdlog::debug("Work completion (WC) opcode-{}, status-{}",
+                         wc[i].opcode, ibv_wc_status_str(wc[i].status));
         }
     }
     /* Similar to connection management events, we need to acknowledge CQ events

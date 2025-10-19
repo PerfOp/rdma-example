@@ -143,6 +143,13 @@ int RdmaClient::client_prepare_connection(struct sockaddr_in *s_addr) {
         rdma_error("Failed to request notifications, errno: %d\n", -errno);
         return -errno;
     }
+
+    this->client_prepare_qp();
+    return 0;
+}
+
+int RdmaClient::client_prepare_qp(void){
+    int ret = -1;
     /* Now the last step, set up the queue pair (send, recv) queues and their
      * capacity. The capacity here is define statically but this can be probed
      * from the device. We just use a small number as defined in rdma_common.h
@@ -176,8 +183,8 @@ int RdmaClient::client_prepare_connection(struct sockaddr_in *s_addr) {
     this->client_qp = this->cm_client_id->qp;
     debug("QP created at %p \n", this->client_qp);
     return 0;
-}
 
+}
 /* Step 2: Pre-posts a receive buffer before calling rdma_connect ()
  * 1) register MR for storing server_metadata (Data structure:
  * server_metadata_attr)
@@ -309,16 +316,6 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size) {
     int ret = -1;
     int flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
                 IBV_ACCESS_REMOTE_READ;
-    /*
-    this->client_read_mr =
-        rdma_buffer_register(this->pd, pBuf->src, size,  // strlen(pBuf->src),
-                             (ibv_access_flags)flags);
-    // (ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
-    // IBV_ACCESS_REMOTE_READ));
-    if (!this->client_read_mr) {
-        rdma_error("We failed to create the destination buffer, -ENOMEM\n");
-        return -ENOMEM;
-    }*/
     this->recvRsp.Attach(this->pd, flags);
     return 0;
 }
