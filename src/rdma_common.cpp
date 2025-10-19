@@ -188,8 +188,7 @@ int process_work_completion_events(struct ibv_comp_channel *comp_channel,
             /* return negative value */
             return -(wc[i].status);
         } else {
-            spdlog::debug("Work completion (WC) opcode-{}, status-{}",
-                         wc[i].opcode, ibv_wc_status_str(wc[i].status));
+            spdlog::info("Work completion (WC) opcode:{}, status:{}",wc[i].opcode, wc[i].status);
         }
     }
     /* Similar to connection management events, we need to acknowledge CQ events

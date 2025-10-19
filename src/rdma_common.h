@@ -160,7 +160,7 @@ public:
     struct ibv_recv_wr client_recv_wr, *bad_client_recv_wr;
     struct ibv_send_wr client_send_wr, *bad_client_send_wr;
     struct ibv_sge send_sge, client_recv_sge;
-    uint8_t *src;
+    uint8_t *pbuf;
     uint32_t length;
 
     struct ibv_pd *m_pd;
@@ -169,13 +169,13 @@ public:
 
 public:
     SimpleBuffer()
-        : src(nullptr),
+        : pbuf(nullptr),
           length(0) /*, bad_send_wr(nullptr), bad_recv_wr(nullptr)*/ {}
     virtual ~SimpleBuffer() {
-        if (src) {
+        if (pbuf) {
             // free(src);
-            delete[] src;
-            src = nullptr;
+            delete[] pbuf;
+            pbuf = nullptr;
         }
     }
 
@@ -183,8 +183,8 @@ public:
 
     uint32_t Allocate(uint32_t size) {
         // src = calloc(size, 1);
-        src = new uint8_t[size];
-        if (src == nullptr) {
+        pbuf = new uint8_t[size];
+        if (pbuf == nullptr) {
             rdma_error("Failed to allocate memory : -ENOMEM\n");
             return 0;
         }
@@ -242,17 +242,17 @@ public:
             return -1;
         }
         m_pd = pd;
-        if (!src) {
+        if (!pbuf) {
             rdma_error("attaching an invalid buffer");
             return -1;
         }
-        m_mr = rdma_buffer_register(m_pd, src, length, permission);
+        m_mr = rdma_buffer_register(m_pd, pbuf, length, permission);
         if (!m_mr) {
             rdma_error("Failed to create mr on buffer, errno: %d \n", -errno);
             return -1;
         }
         m_flags = permission;
-        debug("Buffer attached: %p , len: %u \n", src, length);
+        debug("Buffer attached: %p , len: %u \n", pbuf, length);
 
         return 0;
     }
@@ -265,12 +265,12 @@ public:
         rdma_buffer_deregister(m_mr);
         return 0;
     }
-    uint32_t SyncData(void *buf, uint32_t size) {
-        if (size == 0 || buf == nullptr || src == nullptr || length < size) {
+    uint32_t SyncData(void *pdata, uint32_t size) {
+        if (size == 0 || pdata == nullptr || pbuf == nullptr || length < size) {
             return 0;
         }
 
-        memcpy(src, buf, size);
+        memcpy(pbuf, pdata, size);
         return size;
     }
 };

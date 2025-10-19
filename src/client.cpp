@@ -45,9 +45,9 @@ int main(int argc, char **argv) {
                 }
 
                 rdmaClient.recvReq.Allocate(bufSize);
-                memset(rdmaClient.recvReq.src, 'b', bufSize);
+                memset(rdmaClient.recvReq.pbuf, 'b', bufSize);
                 rdmaClient.recvRsp.Allocate(bufSize);
-                memset(rdmaClient.recvRsp.src, 0, bufSize);
+                memset(rdmaClient.recvRsp.pbuf, 0, bufSize);
                 // bufSize = strlen(optarg);
                 /* Copy the passes arguments */
                 // strncpy(recvReq.src, optarg, strlen(optarg));
@@ -75,7 +75,7 @@ int main(int argc, char **argv) {
         /* no port provided, use the default port */
         server_sockaddr.sin_port = htons(DEFAULT_RDMA_PORT);
     }
-    if (rdmaClient.recvReq.src == NULL) {
+    if (rdmaClient.recvReq.pbuf == NULL) {
         printf("Please provide a string to copy \n");
         usage();
     }
@@ -113,8 +113,8 @@ int main(int argc, char **argv) {
 
     for (int i = 0; i < 10; i++) {
         spdlog::info("{}th send", i);
-        *(char *)(rdmaClient.recvReq.src) = 'a';
-        *(char *)(rdmaClient.recvReq.src + 1) = 'a';
+        *(char *)(rdmaClient.recvReq.pbuf) = 'a';
+        *(char *)(rdmaClient.recvReq.pbuf + 1) = 'a';
         ret =
             rdmaClient.client_remote_memory_write();
         if (ret) {
@@ -130,7 +130,7 @@ int main(int argc, char **argv) {
     }
     rdmaClient.block_check_io_complete();
 
-    if (check_src_dst(rdmaClient.recvReq.src, rdmaClient.recvRsp.src)) {
+    if (check_src_dst(rdmaClient.recvReq.pbuf, rdmaClient.recvRsp.pbuf)) {
         rdma_error("src and dst buffers do not match");
     }
     ret = rdmaClient.client_disconnect_and_clean(&rdmaClient.recvReq);
