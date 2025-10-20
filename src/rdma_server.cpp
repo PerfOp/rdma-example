@@ -292,22 +292,12 @@ int RdmaServer::send_server_metadata_to_client() {
         return ret;
     }
     /* if all good, then we should have client's buffer information, lets see */
+    /* We need to setup requested memory buffer. This is where the client will
+     * do RDMA READs and WRITEs. */
     printf("Client side buffer information is received...\n");
     show_rdma_buffer_attr(&this->client_metadata_attr);
     printf("The client has requested buffer length of : %u bytes \n",
            this->client_metadata_attr.length);
-    /* We need to setup requested memory buffer. This is where the client will
-     * do RDMA READs and WRITEs. */
-    // this->server_buffer_mr = rdma_buffer_alloc(
-        // this->pd [> which protection domain <],
-        // this->client_metadata_attr.length [> what size to allocate <],
-        // (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
-         // IBV_ACCESS_REMOTE_WRITE) [> access permissions <]);
-    // if (!this->server_buffer_mr) {
-        // rdma_error("Server failed to create a buffer \n");
-        // [> we assume that it is due to out of memory error <]
-        // return -ENOMEM;
-    // }
 
     this->serverBuffer.Allocate(this->client_metadata_attr.length);
     this->serverBuffer.Attach(
@@ -320,11 +310,6 @@ int RdmaServer::send_server_metadata_to_client() {
      * We need to prepare a send I/O operation that will tell the
      * client the address of the server buffer.
      */
-    // this->server_metadata_attr.address = (uint64_t)this->server_buffer_mr->addr;
-    // this->server_metadata_attr.length =
-        // (uint32_t)this->server_buffer_mr->length;
-    // this->server_metadata_attr.stag.local_stag =
-        // (uint32_t)this->server_buffer_mr->lkey;
     this->server_metadata_attr.address = (uint64_t)this->serverBuffer.get_mr()->addr;
     this->server_metadata_attr.length =
         (uint32_t)this->serverBuffer.get_mr()->length;
@@ -439,21 +424,6 @@ int RdmaServer::disconnect_and_cleanup() {
     this->serverBuffer.DeAllocate();
     rdma_buffer_deregister(this->server_metadata_mr);
     rdma_buffer_deregister(this->client_metadata_mr);
-    // [> Destroy protection domain <]
-    // ret = ibv_dealloc_pd(this->pd);
-    // if (ret) {
-    // rdma_error("Failed to destroy client protection domain cleanly, %d \n",
-    // -errno);
-    // // we continue anyways;
-    // }
-    // [> Destroy rdma server id <]
-    // ret = rdma_destroy_id(this->cm_server_id);
-    // if (ret) {
-    // rdma_error("Failed to destroy server id cleanly, %d \n", -errno);
-    // // we continue anyways;
-    // }
-    // rdma_destroy_event_channel(this->cm_event_channel);
-    // printf("Server shut-down is complete \n");
     return 0;
 }
 
