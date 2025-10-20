@@ -8,7 +8,6 @@
  */
 #include "rdma_common.h"
 
-
 /* Step 1. Starts an RDMA server by allocating basic connection resources,
  * which are standby resoruce for a server:
  *   * cm_event_channel
@@ -164,7 +163,7 @@ int RdmaServer::setup_client_resources() {
     return ret;
 }
 
-int RdmaServer::block_handle_connect_event(){
+int RdmaServer::block_handle_connect_event() {
     int ret = -1;
     struct rdma_cm_event *cm_event = NULL;
     /* now, we expect a client to connect and generate a
@@ -299,16 +298,21 @@ int RdmaServer::send_server_metadata_to_client() {
            this->client_metadata_attr.length);
     /* We need to setup requested memory buffer. This is where the client will
      * do RDMA READs and WRITEs. */
-    this->server_buffer_mr = rdma_buffer_alloc(
-        this->pd /* which protection domain */,
-        this->client_metadata_attr.length /* what size to allocate */,
-        (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
-         IBV_ACCESS_REMOTE_WRITE) /* access permissions */);
-    if (!this->server_buffer_mr) {
-        rdma_error("Server failed to create a buffer \n");
-        /* we assume that it is due to out of memory error */
-        return -ENOMEM;
-    }
+    // this->server_buffer_mr = rdma_buffer_alloc(
+        // this->pd [> which protection domain <],
+        // this->client_metadata_attr.length [> what size to allocate <],
+        // (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
+         // IBV_ACCESS_REMOTE_WRITE) [> access permissions <]);
+    // if (!this->server_buffer_mr) {
+        // rdma_error("Server failed to create a buffer \n");
+        // [> we assume that it is due to out of memory error <]
+        // return -ENOMEM;
+    // }
+
+    this->serverBuffer.Allocate(this->client_metadata_attr.length);
+    this->serverBuffer.Attach(
+        this->pd, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
+                   IBV_ACCESS_REMOTE_WRITE) /* access permissions */);
     /* This buffer is used to transmit information about the above
      * buffer to the client. So this contains the metadata about the server
      * buffer. Hence this is called metadata buffer. Since this is already
@@ -316,11 +320,16 @@ int RdmaServer::send_server_metadata_to_client() {
      * We need to prepare a send I/O operation that will tell the
      * client the address of the server buffer.
      */
-    this->server_metadata_attr.address = (uint64_t)this->server_buffer_mr->addr;
+    // this->server_metadata_attr.address = (uint64_t)this->server_buffer_mr->addr;
+    // this->server_metadata_attr.length =
+        // (uint32_t)this->server_buffer_mr->length;
+    // this->server_metadata_attr.stag.local_stag =
+        // (uint32_t)this->server_buffer_mr->lkey;
+    this->server_metadata_attr.address = (uint64_t)this->serverBuffer.get_mr()->addr;
     this->server_metadata_attr.length =
-        (uint32_t)this->server_buffer_mr->length;
+        (uint32_t)this->serverBuffer.get_mr()->length;
     this->server_metadata_attr.stag.local_stag =
-        (uint32_t)this->server_buffer_mr->lkey;
+        (uint32_t)this->serverBuffer.get_mr()->lkey;
     this->server_metadata_mr = rdma_buffer_register(
         this->pd /* which protection domain*/,
         &this->server_metadata_attr /* which memory to register */,
@@ -366,20 +375,20 @@ int RdmaServer::send_server_metadata_to_client() {
 /* This is server side logic. Server passively waits for the client to call
  * rdma_disconnect() and then it will clean up its resources
  *   Creation order:
-     * 1. Protection Domains (PD)
-     * 2. Memory Buffers
-     * 3. Completion Queues (CQ)
-     * 4. Queue Pair (QP)
+ * 1. Protection Domains (PD)
+ * 2. Memory Buffers
+ * 3. Completion Queues (CQ)
+ * 4. Queue Pair (QP)
  *   Deletion order:
-     * 1. Queue Pair (QP)
-     * 2. cm_client_id
-     * 3. Completion Queues (CQ)
-     * 4. io_completion_channel
-     * 5. mr ? (multiple mrs)
-     * 6. pd
-     * 7. cm_server_id
-     * 8. cm_event_channel
-     * */
+ * 1. Queue Pair (QP)
+ * 2. cm_client_id
+ * 3. Completion Queues (CQ)
+ * 4. io_completion_channel
+ * 5. mr ? (multiple mrs)
+ * 6. pd
+ * 7. cm_server_id
+ * 8. cm_event_channel
+ * */
 int RdmaServer::disconnect_and_cleanup() {
     struct rdma_cm_event *cm_event = NULL;
     int ret = -1;
@@ -421,22 +430,27 @@ int RdmaServer::disconnect_and_cleanup() {
         // we continue anyways;
     }
     /* Destroy memory buffers */
-    spdlog::info("Mr data before disconnectted:{}", (char*)(this->server_buffer_mr->addr));
-    rdma_buffer_free(this->server_buffer_mr);
+    // spdlog::info("Mr data before disconnectted:{}",
+                 // (char *)(this->server_buffer_mr->addr));
+    // rdma_buffer_free(this->server_buffer_mr);
+    spdlog::info("Mr data before disconnectted:{}",
+                 (char *)(this->serverBuffer.get_mr()->addr));
+    this->serverBuffer.DeAttach();
+    this->serverBuffer.DeAllocate();
     rdma_buffer_deregister(this->server_metadata_mr);
     rdma_buffer_deregister(this->client_metadata_mr);
     // [> Destroy protection domain <]
     // ret = ibv_dealloc_pd(this->pd);
     // if (ret) {
-        // rdma_error("Failed to destroy client protection domain cleanly, %d \n",
-                   // -errno);
-        // // we continue anyways;
+    // rdma_error("Failed to destroy client protection domain cleanly, %d \n",
+    // -errno);
+    // // we continue anyways;
     // }
     // [> Destroy rdma server id <]
     // ret = rdma_destroy_id(this->cm_server_id);
     // if (ret) {
-        // rdma_error("Failed to destroy server id cleanly, %d \n", -errno);
-        // // we continue anyways;
+    // rdma_error("Failed to destroy server id cleanly, %d \n", -errno);
+    // // we continue anyways;
     // }
     // rdma_destroy_event_channel(this->cm_event_channel);
     // printf("Server shut-down is complete \n");

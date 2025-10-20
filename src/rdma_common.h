@@ -193,6 +193,13 @@ public:
         return size;
     }
 
+    void DeAllocate() {
+        if (pbuf != nullptr) {
+            delete []pbuf;
+            pbuf=nullptr;
+        }
+    }
+
     int remote_write(const struct ibv_qp *client_qp,
                      const struct RdmaBufferAttr &server_metadata_attr) {
         return remote_ops(client_qp, server_metadata_attr, IBV_WR_RDMA_WRITE);
@@ -305,7 +312,7 @@ private:
     struct ibv_comp_channel *io_completion_channel;
     struct ibv_qp *client_qp;
     struct ibv_mr *client_metadata_mr;
-    struct ibv_mr *server_buffer_mr;
+    // struct ibv_mr *server_buffer_mr;
     struct ibv_mr *server_metadata_mr;
     struct ibv_recv_wr *bad_client_recv_wr;
     struct ibv_send_wr *bad_server_send_wr;
@@ -318,6 +325,7 @@ private:
 
     struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
 
+    SimpleBuffer serverBuffer;
 public:
     RdmaServer()
         : cm_event_channel(NULL),
@@ -328,7 +336,7 @@ public:
           io_completion_channel(NULL),
           client_qp(NULL),
           client_metadata_mr(NULL),
-          server_buffer_mr(NULL),
+          // server_buffer_mr(NULL),
           server_metadata_mr(NULL),
           bad_client_recv_wr(NULL),
           bad_server_send_wr(NULL) {}
