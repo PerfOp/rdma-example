@@ -201,12 +201,12 @@ public:
     }
 
     int remote_write(const struct ibv_qp *client_qp,
-                     const struct RdmaBufferAttr &server_metadata_attr) {
-        return remote_ops(client_qp, server_metadata_attr, IBV_WR_RDMA_WRITE);
+                     const struct RdmaBufferAttr &target_srv_attr) {
+        return remote_ops(client_qp, target_srv_attr, IBV_WR_RDMA_WRITE);
     }
     int remote_read(const struct ibv_qp *client_qp,
-                    const struct RdmaBufferAttr &server_metadata_attr) {
-        return remote_ops(client_qp, server_metadata_attr, IBV_WR_RDMA_READ);
+                    const struct RdmaBufferAttr &target_srv_attr) {
+        return remote_ops(client_qp, target_srv_attr, IBV_WR_RDMA_READ);
     }
 
     int remote_msg(const struct ibv_qp *client_qp, enum ibv_wr_opcode opcode) {
@@ -231,7 +231,7 @@ public:
 
 private:
     int remote_ops(const struct ibv_qp *client_qp,
-                   const struct RdmaBufferAttr &server_metadata_attr,
+                   const struct RdmaBufferAttr &target_srv_attr,
                    enum ibv_wr_opcode opcode) {
         struct ibv_wc wc;
         int ret = -1;
@@ -246,9 +246,8 @@ private:
         this->client_send_wr.opcode = opcode;
         this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
         /* we have to tell server side info for RDMA */
-        this->client_send_wr.wr.rdma.rkey =
-            server_metadata_attr.stag.remote_stag;
-        this->client_send_wr.wr.rdma.remote_addr = server_metadata_attr.address;
+        this->client_send_wr.wr.rdma.rkey = target_srv_attr.stag.remote_stag;
+        this->client_send_wr.wr.rdma.remote_addr = target_srv_attr.address;
         /* Now we post it */
         ret = ibv_post_send(client_qp, &this->client_send_wr,
                             &this->bad_client_send_wr);
