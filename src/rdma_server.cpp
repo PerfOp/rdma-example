@@ -66,12 +66,12 @@ int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
  * credentials
  * Creating client-wise resources for handling communication:
  */
-int RdmaServer::setup_client_resources() {
-    int ret = -1;
-    if (!cm_client_id) {
-        rdma_error("Client id is still NULL \n");
-        return -EINVAL;
-    }
+// int RdmaServer::setup_client_resources() {
+    // int ret = -1;
+    // if (!cm_client_id) {
+        // rdma_error("Client id is still NULL \n");
+        // return -EINVAL;
+    // }
     /* We have a valid connection identifier, lets start to allocate
      * resources. We need:
      * 1. Protection Domains (PD)
@@ -82,86 +82,86 @@ int RdmaServer::setup_client_resources() {
      * in the operating system. All resources are tied to a particular PD.
      * And accessing recourses across PD will result in a protection fault.
      */
-    pd = ibv_alloc_pd(cm_client_id->verbs
-			/* verbs defines a verb's provider,
-			 * i.e an RDMA device where the incoming
-			 * client connection came */);
-    if (!pd) {
-        rdma_error("Failed to allocate a protection domain errno: %d\n",
-                   -errno);
-        return -errno;
-    }
-    debug("A new protection domain is allocated at %p \n", rdmaServer.pd);
+    // pd = ibv_alloc_pd(cm_client_id->verbs
+			// verbs defines a verb's provider,
+			// i.e an RDMA device where the incoming
+			// client connection came );
+    // if (!pd) {
+        // rdma_error("Failed to allocate a protection domain errno: %d\n",
+                   // -errno);
+        // return -errno;
+    // }
+    // debug("A new protection domain is allocated at %p \n", rdmaServer.pd);
     /* Now we need a completion channel, were the I/O completion
      * notifications are sent. Remember, this is different from connection
      * management (CM) event notifications.
      * A completion channel is also tied to an RDMA device, hence we will
      * use rdmaServer.cm_client_id->verbs.
      */
-    io_completion_channel = ibv_create_comp_channel(cm_client_id->verbs);
-    if (!io_completion_channel) {
-        rdma_error("Failed to create an I/O completion event channel, %d\n",
-                   -errno);
-        return -errno;
-    }
-    debug("An I/O completion event channel is created at %p \n",
-          io_completion_channel);
+    // io_completion_channel = ibv_create_comp_channel(cm_client_id->verbs);
+    // if (!io_completion_channel) {
+        // rdma_error("Failed to create an I/O completion event channel, %d\n",
+                   // -errno);
+        // return -errno;
+    // }
+    // debug("An I/O completion event channel is created at %p \n",
+          // io_completion_channel);
     /* Now we create a completion queue (CQ) where actual I/O
      * completion metadata is placed. The metadata is packed into a structure
      * called struct ibv_wc (wc = work completion). ibv_wc has detailed
      * information about the work completion. An I/O request in RDMA world
      * is called "work" ;)
      */
-    cq = ibv_create_cq(cm_client_id->verbs /* which device*/,
-                       CQ_CAPACITY /* maximum capacity*/,
-                       NULL /* user context, not used here */,
-                       io_completion_channel /* which IO completion channel */,
-                       0 /* signaling vector, not used here*/);
-    if (!cq) {
-        rdma_error("Failed to create a completion queue (cq), errno: %d\n",
-                   -errno);
-        return -errno;
-    }
-    debug("Completion queue (CQ) is created at %p with %d elements \n", cq,
-          cq->cqe);
-    /* Ask for the event for all activities in the completion queue*/
-    ret = ibv_req_notify_cq(cq /* on which CQ */,
-                            0 /* 0 = all event type, no filter*/);
-    if (ret) {
-        rdma_error("Failed to request notifications on CQ errno: %d \n",
-                   -errno);
-        return -errno;
-    }
+    // cq = ibv_create_cq(cm_client_id->verbs [> which device<],
+                       // CQ_CAPACITY [> maximum capacity<],
+                       // NULL [> user context, not used here <],
+                       // io_completion_channel [> which IO completion channel <],
+                       // 0 [> signaling vector, not used here<]);
+    // if (!cq) {
+        // rdma_error("Failed to create a completion queue (cq), errno: %d\n",
+                   // -errno);
+        // return -errno;
+    // }
+    // debug("Completion queue (CQ) is created at %p with %d elements \n", cq,
+          // cq->cqe);
+    // [> Ask for the event for all activities in the completion queue<]
+    // ret = ibv_req_notify_cq(cq [> on which CQ <],
+                            // 0 [> 0 = all event type, no filter<]);
+    // if (ret) {
+        // rdma_error("Failed to request notifications on CQ errno: %d \n",
+                   // -errno);
+        // return -errno;
+    // }
     /* Now the last step, set up the queue pair (send, recv) queues and their
      * capacity. The capacity here is define statically but this can be probed
      * from the device. We just use a small number as defined in rdma_common.h
      */
-    bzero(&qp_init_attr, sizeof(qp_init_attr));
-    qp_init_attr.cap.max_recv_sge =
-        MAX_SGE; /* Maximum SGE per receive posting */
-    qp_init_attr.cap.max_recv_wr =
-        MAX_WR; /* Maximum receive posting capacity */
-    qp_init_attr.cap.max_send_sge = MAX_SGE; /* Maximum SGE per send posting */
-    qp_init_attr.cap.max_send_wr = MAX_WR;   /* Maximum send posting capacity */
-    qp_init_attr.qp_type = IBV_QPT_RC; /* QP type, RC = Reliable connection */
-    /* We use same completion queue, but one can use different queues */
-    qp_init_attr.recv_cq =
-        cq; /* Where should I notify for receive completion operations */
-    qp_init_attr.send_cq =
-        cq; /* Where should I notify for send completion operations */
-    /*Lets create a QP */
-    ret = rdma_create_qp(cm_client_id /* which connection id */,
-                         pd /* which protection domain*/,
-                         &qp_init_attr /* Initial attributes */);
-    if (ret) {
-        rdma_error("Failed to create QP due to errno: %d\n", -errno);
-        return -errno;
-    }
-    /* Save the reference for handy typing but is not required */
-    client_qp = cm_client_id->qp;
-    debug("Client QP created at %p\n", client_qp);
-    return ret;
-}
+    // bzero(&qp_init_attr, sizeof(qp_init_attr));
+    // qp_init_attr.cap.max_recv_sge =
+        // MAX_SGE; [> Maximum SGE per receive posting <]
+    // qp_init_attr.cap.max_recv_wr =
+        // MAX_WR; [> Maximum receive posting capacity <]
+    // qp_init_attr.cap.max_send_sge = MAX_SGE; [> Maximum SGE per send posting <]
+    // qp_init_attr.cap.max_send_wr = MAX_WR;   [> Maximum send posting capacity <]
+    // qp_init_attr.qp_type = IBV_QPT_RC; [> QP type, RC = Reliable connection <]
+    // [> We use same completion queue, but one can use different queues <]
+    // qp_init_attr.recv_cq =
+        // cq; [> Where should I notify for receive completion operations <]
+    // qp_init_attr.send_cq =
+        // cq; [> Where should I notify for send completion operations <]
+    // [>Lets create a QP <]
+    // ret = rdma_create_qp(cm_client_id [> which connection id <],
+                         // pd [> which protection domain<],
+                         // &qp_init_attr [> Initial attributes <]);
+    // if (ret) {
+        // rdma_error("Failed to create QP due to errno: %d\n", -errno);
+        // return -errno;
+    // }
+    // [> Save the reference for handy typing but is not required <]
+    // client_qp = cm_client_id->qp;
+    // debug("Client QP created at %p\n", client_qp);
+    // return ret;
+// }
 
 int RdmaServer::block_handle_connect_event() {
     int ret = -1;
@@ -202,14 +202,14 @@ int RdmaServer::accept_client_connection() {
     struct rdma_cm_event *cm_event = NULL;
     struct sockaddr_in remote_sockaddr;
     int ret = -1;
-    if (!this->cm_client_id || !this->client_qp) {
+    if (!this->m_clientCtx.cm_client_id || !this->m_clientCtx.client_qp) {
         rdma_error("Client resources are not properly setup\n");
         return -EINVAL;
     }
     /* we prepare the receive buffer in which we will receive the client
      * metadata*/
     this->client_metadata_mr = rdma_buffer_register(
-        this->pd /* which protection domain */,
+        this->m_clientCtx.pd /* which protection domain */,
         &this->client_metadata_attr /* what memory */,
         sizeof(this->client_metadata_attr) /* what length */,
         (IBV_ACCESS_LOCAL_WRITE) /* access permissions */);
@@ -228,7 +228,7 @@ int RdmaServer::accept_client_connection() {
     bzero(&this->client_recv_wr, sizeof(this->client_recv_wr));
     this->client_recv_wr.sg_list = &this->client_recv_sge;
     this->client_recv_wr.num_sge = 1;  // only one SGE
-    ret = ibv_post_recv(this->client_qp /* which QP */,
+    ret = ibv_post_recv(this->m_clientCtx.client_qp /* which QP */,
                         &this->client_recv_wr /* receive work request*/,
                         &this->bad_client_recv_wr /* error WRs */);
     if (ret) {
@@ -286,7 +286,7 @@ int RdmaServer::send_server_metadata_to_client() {
      * in our example. We will receive a work completion notification for
      * our pre-posted receive request.
      */
-    ret = process_work_completion_events(this->io_completion_channel, &wc, 1);
+    ret = process_work_completion_events(this->m_clientCtx.io_completion_channel, &wc, 1);
     if (ret != 1) {
         rdma_error("Failed to receive , ret = %d \n", ret);
         return ret;
@@ -301,7 +301,7 @@ int RdmaServer::send_server_metadata_to_client() {
 
     this->serverBuffer.Allocate(this->client_metadata_attr.length);
     this->serverBuffer.Attach(
-        this->pd, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
+        this->m_clientCtx.pd, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
                    IBV_ACCESS_REMOTE_WRITE) /* access permissions */);
     /* This buffer is used to transmit information about the above
      * buffer to the client. So this contains the metadata about the server
@@ -316,7 +316,7 @@ int RdmaServer::send_server_metadata_to_client() {
     this->server_metadata_attr.stag.local_stag =
         (uint32_t)this->serverBuffer.get_mr()->lkey;
     this->server_metadata_mr = rdma_buffer_register(
-        this->pd /* which protection domain*/,
+        this->m_clientCtx.pd /* which protection domain*/,
         &this->server_metadata_attr /* which memory to register */,
         sizeof(this->server_metadata_attr) /* what is the size of memory */,
         IBV_ACCESS_LOCAL_WRITE /* what access permission */);
@@ -341,14 +341,14 @@ int RdmaServer::send_server_metadata_to_client() {
         IBV_SEND_SIGNALED;  // We want to get notification
     /* This is a fast data path operation. Posting an I/O request */
     ret = ibv_post_send(
-        this->client_qp /* which QP */,
+        this->m_clientCtx.client_qp /* which QP */,
         &this->server_send_wr /* Send request that we prepared before */, &this->bad_server_send_wr /* In case of error, this will contain failed requests */);
     if (ret) {
         rdma_error("Posting of server metdata failed, errno: %d \n", -errno);
         return -errno;
     }
     /* We check for completion notification */
-    ret = process_work_completion_events(this->io_completion_channel, &wc, 1);
+    ret = process_work_completion_events(this->m_clientCtx.io_completion_channel, &wc, 1);
     if (ret != 1) {
         rdma_error("Failed to send server metadata, ret = %d \n", ret);
         return ret;
@@ -392,38 +392,17 @@ int RdmaServer::disconnect_and_cleanup() {
         return -errno;
     }
     printf("A disconnect event is received from the client...\n");
-    /* We free all the resources */
-    /* Destroy QP */
-    rdma_destroy_qp(this->cm_client_id);
-    /* Destroy client cm id */
-    ret = rdma_destroy_id(this->cm_client_id);
-    if (ret) {
-        rdma_error("Failed to destroy client id cleanly, %d \n", -errno);
-        // we continue anyways;
-    }
-    /* Destroy CQ */
-    ret = ibv_destroy_cq(this->cq);
-    if (ret) {
-        rdma_error("Failed to destroy completion queue cleanly, %d \n", -errno);
-        // we continue anyways;
-    }
-    /* Destroy completion channel */
-    ret = ibv_destroy_comp_channel(this->io_completion_channel);
-    if (ret) {
-        rdma_error("Failed to destroy completion channel cleanly, %d \n",
-                   -errno);
-        // we continue anyways;
-    }
+
     /* Destroy memory buffers */
-    // spdlog::info("Mr data before disconnectted:{}",
-                 // (char *)(this->server_buffer_mr->addr));
-    // rdma_buffer_free(this->server_buffer_mr);
     spdlog::info("Mr data before disconnectted:{}",
                  (char *)(this->serverBuffer.get_mr()->addr));
     this->serverBuffer.DeAttach();
     this->serverBuffer.DeAllocate();
     rdma_buffer_deregister(this->server_metadata_mr);
     rdma_buffer_deregister(this->client_metadata_mr);
+
+    this->m_clientCtx.CleanupCtx();
+
     return 0;
 }
 
@@ -431,7 +410,7 @@ int RdmaServer::server_cleanup() {
     struct rdma_cm_event *cm_event = NULL;
     int ret = -1;
     /* Destroy protection domain */
-    ret = ibv_dealloc_pd(this->pd);
+    ret = ibv_dealloc_pd(this->m_clientCtx.pd);
     if (ret) {
         rdma_error("Failed to destroy client protection domain cleanly, %d \n",
                    -errno);

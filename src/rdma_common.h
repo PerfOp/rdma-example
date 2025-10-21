@@ -195,8 +195,8 @@ public:
 
     void DeAllocate() {
         if (pbuf != nullptr) {
-            delete []pbuf;
-            pbuf=nullptr;
+            delete[] pbuf;
+            pbuf = nullptr;
         }
     }
 
@@ -302,15 +302,40 @@ public:
     }
 };
 
-class RdmaServer {
-private:
-    struct rdma_event_channel *cm_event_channel;
-    struct rdma_cm_id *cm_server_id;
+class ClientCtx {
+public:
     struct rdma_cm_id *cm_client_id;
     struct ibv_pd *pd;
     struct ibv_cq *cq;
-    struct ibv_comp_channel *io_completion_channel;
     struct ibv_qp *client_qp;
+    struct ibv_comp_channel *io_completion_channel;
+    struct ibv_qp_init_attr qp_init_attr;
+
+public:
+    ClientCtx()
+        : cm_client_id(NULL),
+          pd(NULL),
+          cq(NULL),
+          client_qp(NULL),
+          io_completion_channel(NULL) {}
+
+    int SetupCtx(struct rdma_cm_id *client_id);
+
+    int CleanupCtx();
+};
+
+class RdmaServer {
+public:
+    struct rdma_cm_id *cm_client_id;
+
+private:
+    struct rdma_event_channel *cm_event_channel;
+    struct rdma_cm_id *cm_server_id;
+    // struct ibv_pd *pd;
+    // struct ibv_cq *cq;
+    // struct ibv_comp_channel *io_completion_channel;
+    // struct ibv_qp *client_qp;
+
     struct ibv_mr *client_metadata_mr;
     struct ibv_mr *server_metadata_mr;
     struct ibv_recv_wr *bad_client_recv_wr;
@@ -325,22 +350,26 @@ private:
     struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
 
     SimpleBuffer serverBuffer;
+
+public:
+    ClientCtx m_clientCtx;
+
 public:
     RdmaServer()
         : cm_event_channel(NULL),
           cm_server_id(NULL),
           cm_client_id(NULL),
-          pd(NULL),
-          cq(NULL),
-          io_completion_channel(NULL),
-          client_qp(NULL),
+          // pd(NULL),
+          // cq(NULL),
+          // io_completion_channel(NULL),
+          // client_qp(NULL),
           client_metadata_mr(NULL),
           server_metadata_mr(NULL),
           bad_client_recv_wr(NULL),
           bad_server_send_wr(NULL) {}
 
     int start_rdma_server(struct sockaddr_in *server_addr);
-    int setup_client_resources();
+    // int setup_client_resources();
     int accept_client_connection();
     int send_server_metadata_to_client();
     int disconnect_and_cleanup();
