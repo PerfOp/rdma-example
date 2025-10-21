@@ -332,10 +332,6 @@ public:
 private:
     struct rdma_event_channel *cm_event_channel;
     struct rdma_cm_id *cm_server_id;
-    // struct ibv_pd *pd;
-    // struct ibv_cq *cq;
-    // struct ibv_comp_channel *io_completion_channel;
-    // struct ibv_qp *client_qp;
 
     struct ibv_mr *client_metadata_mr;
     struct ibv_mr *server_metadata_mr;
