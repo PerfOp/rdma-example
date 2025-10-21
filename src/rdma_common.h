@@ -310,6 +310,7 @@ public:
     struct ibv_qp *client_qp;
     struct ibv_comp_channel *io_completion_channel;
     struct ibv_qp_init_attr qp_init_attr;
+    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
 
 public:
     ClientCtx()
@@ -347,7 +348,7 @@ private:
     struct ibv_qp_init_attr qp_init_attr;
     struct ibv_sge client_recv_sge, server_send_sge;
 
-    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
+    // struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
 
     SimpleBuffer serverBuffer;
 
@@ -359,10 +360,6 @@ public:
         : cm_event_channel(NULL),
           cm_server_id(NULL),
           cm_client_id(NULL),
-          // pd(NULL),
-          // cq(NULL),
-          // io_completion_channel(NULL),
-          // client_qp(NULL),
           client_metadata_mr(NULL),
           server_metadata_mr(NULL),
           bad_client_recv_wr(NULL),
@@ -376,6 +373,9 @@ public:
     int server_cleanup();
 
     int block_handle_connect_event();
+
+private:
+    int prepare_to_recv_client_meta();
 };
 
 class RdmaClient {

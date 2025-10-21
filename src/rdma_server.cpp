@@ -196,8 +196,7 @@ int RdmaServer::block_handle_connect_event() {
     return ret;
 }
 
-/* Pre-posts a receive buffer and accepts an RDMA client connection */
-int RdmaServer::accept_client_connection() {
+int RdmaServer::prepare_to_recv_client_meta(){
     struct rdma_conn_param conn_param;
     struct rdma_cm_event *cm_event = NULL;
     struct sockaddr_in remote_sockaddr;
@@ -210,8 +209,8 @@ int RdmaServer::accept_client_connection() {
      * metadata*/
     this->client_metadata_mr = rdma_buffer_register(
         this->m_clientCtx.pd /* which protection domain */,
-        &this->client_metadata_attr /* what memory */,
-        sizeof(this->client_metadata_attr) /* what length */,
+        &this->m_clientCtx.client_metadata_attr /* what memory */,
+        sizeof(this->m_clientCtx.client_metadata_attr) /* what length */,
         (IBV_ACCESS_LOCAL_WRITE) /* access permissions */);
     if (!this->client_metadata_mr) {
         rdma_error("Failed to register client attr buffer\n");
@@ -236,6 +235,54 @@ int RdmaServer::accept_client_connection() {
         return ret;
     }
     debug("Receive buffer pre-posting is successful \n");
+    return 0;
+}
+
+/* Pre-posts a receive buffer and accepts an RDMA client connection */
+int RdmaServer::accept_client_connection() {
+    struct rdma_conn_param conn_param;
+    struct rdma_cm_event *cm_event = NULL;
+    struct sockaddr_in remote_sockaddr;
+    int ret = -1;
+    ret = prepare_to_recv_client_meta();
+    if (ret) {
+        rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
+        return ret;
+    }
+    // if (!this->m_clientCtx.cm_client_id || !this->m_clientCtx.client_qp) {
+        // rdma_error("Client resources are not properly setup\n");
+        // return -EINVAL;
+    // }
+    /* we prepare the receive buffer in which we will receive the client
+     * metadata*/
+    // this->client_metadata_mr = rdma_buffer_register(
+        // this->m_clientCtx.pd [> which protection domain <],
+        // &this->client_metadata_attr [> what memory <],
+        // sizeof(this->client_metadata_attr) [> what length <],
+        // (IBV_ACCESS_LOCAL_WRITE) [> access permissions <]);
+    // if (!this->client_metadata_mr) {
+        // rdma_error("Failed to register client attr buffer\n");
+        // // we assume ENOMEM
+        // return -ENOMEM;
+    // }
+    /* We pre-post this receive buffer on the QP. SGE credentials is where we
+     * receive the metadata from the client */
+    // this->client_recv_sge.addr = (uint64_t)this->client_metadata_mr
+                                     // ->addr;  // same as &client_buffer_attr
+    // this->client_recv_sge.length = this->client_metadata_mr->length;
+    // this->client_recv_sge.lkey = this->client_metadata_mr->lkey;
+    // [> Now we link this SGE to the work request (WR) <]
+    // bzero(&this->client_recv_wr, sizeof(this->client_recv_wr));
+    // this->client_recv_wr.sg_list = &this->client_recv_sge;
+    // this->client_recv_wr.num_sge = 1;  // only one SGE
+    // ret = ibv_post_recv(this->m_clientCtx.client_qp [> which QP <],
+                        // &this->client_recv_wr [> receive work request<],
+                        // &this->bad_client_recv_wr [> error WRs <]);
+    // if (ret) {
+        // rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
+        // return ret;
+    // }
+    // debug("Receive buffer pre-posting is successful \n");
     /* Now we accept the connection. Recall we have not accepted the connection
      * yet because we have to do lots of resource pre-allocation */
     memset(&conn_param, 0, sizeof(conn_param));
@@ -295,11 +342,11 @@ int RdmaServer::send_server_metadata_to_client() {
     /* We need to setup requested memory buffer. This is where the client will
      * do RDMA READs and WRITEs. */
     printf("Client side buffer information is received...\n");
-    show_rdma_buffer_attr(&this->client_metadata_attr);
+    show_rdma_buffer_attr(&this->m_clientCtx.client_metadata_attr);
     printf("The client has requested buffer length of : %u bytes \n",
-           this->client_metadata_attr.length);
+           this->m_clientCtx.client_metadata_attr.length);
 
-    this->serverBuffer.Allocate(this->client_metadata_attr.length);
+    this->serverBuffer.Allocate(this->m_clientCtx.client_metadata_attr.length);
     this->serverBuffer.Attach(
         this->m_clientCtx.pd, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
                    IBV_ACCESS_REMOTE_WRITE) /* access permissions */);
@@ -310,15 +357,15 @@ int RdmaServer::send_server_metadata_to_client() {
      * We need to prepare a send I/O operation that will tell the
      * client the address of the server buffer.
      */
-    this->server_metadata_attr.address = (uint64_t)this->serverBuffer.get_mr()->addr;
-    this->server_metadata_attr.length =
+    this->m_clientCtx.server_metadata_attr.address = (uint64_t)this->serverBuffer.get_mr()->addr;
+    this->m_clientCtx.server_metadata_attr.length =
         (uint32_t)this->serverBuffer.get_mr()->length;
-    this->server_metadata_attr.stag.local_stag =
+    this->m_clientCtx.server_metadata_attr.stag.local_stag =
         (uint32_t)this->serverBuffer.get_mr()->lkey;
     this->server_metadata_mr = rdma_buffer_register(
         this->m_clientCtx.pd /* which protection domain*/,
-        &this->server_metadata_attr /* which memory to register */,
-        sizeof(this->server_metadata_attr) /* what is the size of memory */,
+        &this->m_clientCtx.server_metadata_attr /* which memory to register */,
+        sizeof(this->m_clientCtx.server_metadata_attr) /* what is the size of memory */,
         IBV_ACCESS_LOCAL_WRITE /* what access permission */);
     if (!this->server_metadata_mr) {
         rdma_error("Server failed to create to hold server metadata \n");
@@ -329,8 +376,8 @@ int RdmaServer::send_server_metadata_to_client() {
      * A send request consists of multiple SGE elements. In our case, we only
      * have one
      */
-    this->server_send_sge.addr = (uint64_t) & this->server_metadata_attr;
-    this->server_send_sge.length = sizeof(this->server_metadata_attr);
+    this->server_send_sge.addr = (uint64_t) & this->m_clientCtx.server_metadata_attr;
+    this->server_send_sge.length = sizeof(this->m_clientCtx.server_metadata_attr);
     this->server_send_sge.lkey = this->server_metadata_mr->lkey;
     /* now we link this sge to the send request */
     bzero(&this->server_send_wr, sizeof(this->server_send_wr));

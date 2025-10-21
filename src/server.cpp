@@ -29,11 +29,11 @@ int main_loop() {
     }
 
     ret = rdmaServer.m_clientCtx.SetupCtx(rdmaServer.cm_client_id);
-    // ret = rdmaServer.setup_client_resources();
-    // if (ret) {
-        // rdma_error("Failed to setup client resources, ret = %d \n", ret);
-        // return ret;
-    // }
+    if (ret) {
+        rdma_error("Failed to setup client resources, ret = %d \n", ret);
+        return ret;
+    }
+
     ret = rdmaServer.accept_client_connection();
     if (ret) {
         rdma_error("Failed to handle client cleanly, ret = %d \n", ret);
