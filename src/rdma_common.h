@@ -331,7 +331,7 @@ public:
     struct ibv_qp *client_qp;
     struct ibv_comp_channel *io_completion_channel;
     struct ibv_qp_init_attr qp_init_attr;
-    struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
+    struct RdmaBufferAttr *client_metadata_attr, server_metadata_attr;
 
 public:
     ClientCtx()
@@ -354,33 +354,20 @@ private:
     struct rdma_event_channel *cm_event_channel;
     struct rdma_cm_id *cm_server_id;
 
-    struct ibv_mr *client_metadata_mr;
-    struct ibv_mr *server_metadata_mr;
-    struct ibv_recv_wr *bad_client_recv_wr;
-    struct ibv_send_wr *bad_server_send_wr;
-
     // Variables
-    struct ibv_recv_wr client_recv_wr;
-    struct ibv_send_wr server_send_wr;
     struct ibv_qp_init_attr qp_init_attr;
-    struct ibv_sge client_recv_sge, server_send_sge;
-
-    // struct RdmaBufferAttr client_metadata_attr, server_metadata_attr;
 
     SimpleBuffer serverBuffer;
+
+    SimpleBuffer clientMeta;
+    SimpleBuffer serverMeta;
 
 public:
     ClientCtx m_clientCtx;
 
 public:
     RdmaServer()
-        : cm_event_channel(NULL),
-          cm_server_id(NULL),
-          cm_client_id(NULL),
-          client_metadata_mr(NULL),
-          server_metadata_mr(NULL),
-          bad_client_recv_wr(NULL),
-          bad_server_send_wr(NULL) {}
+        : cm_event_channel(NULL), cm_server_id(NULL), cm_client_id(NULL) {}
 
     int start_rdma_server(struct sockaddr_in *server_addr);
     // int setup_client_resources();
