@@ -32,10 +32,19 @@
         spdlog::error("{} {}", msg, ##args); \
     } while (0);
 
-#define check_error(ret, msg, args...)            \
-    if (ret != 0) {                          \
-        spdlog::error("{} ret: {}", msg, -errno, ##args); \
+#define check_ret_and_error(ret, msg, args...)                             \
+    if (ret != 0) {                                                        \
+        spdlog::error("{}; ret: {}; errno: {}", msg, ret, -errno, ##args); \
     }
+
+#define check_ret_and_return(ret, msg, args...)                            \
+    if (ret != 0) {                                                        \
+        spdlog::error("{}; ret: {}; errno: {}", msg, ret, -errno, ##args); \
+        return ret;                                                        \
+    }
+
+#define safe_del(p) if(p!=nullptr){delete (p); (p)=nullptr;}
+#define safe_del_array(p) if(p!=nullptr){delete [](p); (p)=nullptr;}
 
 #define rdma_cm_event_status(event, status, args...)                    \
     do {                                                                \
@@ -177,11 +186,7 @@ public:
         : pbuf(nullptr),
           length(0) /*, bad_send_wr(nullptr), bad_recv_wr(nullptr)*/ {}
     virtual ~SimpleBuffer() {
-        if (pbuf) {
-            // free(src);
-            delete[] pbuf;
-            pbuf = nullptr;
-        }
+        safe_del_array(pbuf);
     }
 
     inline const struct ibv_mr *get_mr() { return m_mr; }
@@ -199,10 +204,7 @@ public:
     }
 
     void DeAllocate() {
-        if (pbuf != nullptr) {
-            delete[] pbuf;
-            pbuf = nullptr;
-        }
+        safe_del_array(pbuf);
     }
 
     int remote_write(struct ibv_qp *client_qp,
@@ -243,14 +245,15 @@ public:
         bzero(&this->client_recv_wr, sizeof(this->client_recv_wr));
         this->client_recv_wr.sg_list = &this->client_recv_sge;
         this->client_recv_wr.num_sge = 1;
-        ret = ibv_post_recv(client_qp /* which QP */,
-                            &this->client_recv_wr /* receive work request*/,
-                            &this->bad_client_recv_wr /* error WRs */);
-        if (ret) {
-            rdma_error("Failed to pre-post the receive buffer, errno: %d \n",
-                       ret);
-            return ret;
-        }
+        ret = ibv_post_recv(client_qp,                   // which QP
+                            &this->client_recv_wr,       // receive work request
+                            &this->bad_client_recv_wr);  // error WRs
+        check_ret_and_return(ret, "Failed to pre-post the receive buffer");
+        // if (ret) {
+        // rdma_error("Failed to pre-post the receive buffer, errno: %d \n",
+        // ret);
+        // return ret;
+        // }
         debug("Receive buffer pre-posting is successful \n");
 
         return 0;
@@ -336,7 +339,7 @@ public:
     struct ibv_qp *client_qp;
     struct ibv_comp_channel *io_completion_channel;
     struct ibv_qp_init_attr qp_init_attr;
-    struct RdmaBufferAttr *client_metadata_attr, server_metadata_attr;
+    struct RdmaBufferAttr *client_metadata_attr;
 
 public:
     ClientCtx()
@@ -358,9 +361,6 @@ public:
 private:
     struct rdma_event_channel *cm_event_channel;
     struct rdma_cm_id *cm_server_id;
-
-    // Variables
-    struct ibv_qp_init_attr qp_init_attr;
 
     SimpleBuffer serverBuffer;
 

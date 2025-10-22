@@ -55,7 +55,7 @@ int main(int argc, char **argv) {
             case 'a':
                 /* remember, this overwrites the port info */
                 ret = get_addr(optarg, (struct sockaddr *)&server_sockaddr);
-                check_error(ret, "Invalid IP", optarg);
+                check_ret_and_error(ret, "Invalid IP", optarg);
                 break;
             case 'p':
                 /* passed port to listen on */
@@ -75,65 +75,70 @@ int main(int argc, char **argv) {
         usage();
     }
     ret = rdmaClient.client_prepare_connection(&server_sockaddr);
-    if (ret) {
-        rdma_error("Failed to setup client connection , ret = %d \n", ret);
-        // spdlog::error("Failed to setup client connection:{}-{}\n", error,
-        // rdma_strerror(errno));
-        return ret;
-    }
-    ret = rdmaClient.client_prepare_recv_buffer_meta();
-    check_error(ret, "Failed to setup client connection ");
+    check_ret_and_return(ret, "Failed to setup client connection ");
     // if (ret) {
-        // rdma_error("Failed to setup client connection , ret = %d \n", ret);
-        // return ret;
+    // rdma_error("Failed to setup client connection , ret = %d \n", ret);
+    // return ret;
+    // }
+    ret = rdmaClient.client_prepare_recv_buffer_meta();
+    check_ret_and_return(ret, "Failed to setup client connection ");
+    // if (ret) {
+    // rdma_error("Failed to setup client connection , ret = %d \n", ret);
+    // return ret;
     // }
 
     ret = rdmaClient.client_connect_to_server();
-    if (ret) {
-        rdma_error("Failed to setup client connection , ret = %d \n", ret);
-        return ret;
-    }
+    check_ret_and_return(ret, "Failed to setup client connection ");
+    // if (ret) {
+    // rdma_error("Failed to setup client connection , ret = %d \n", ret);
+    // return ret;
+    // }
     // Create MR for writing and bind with req buffer
     ret = rdmaClient.client_xchange_metadata_with_server(&(rdmaClient.recvReq));
-    if (ret) {
-        rdma_error("Failed to setup client connection , ret = %d \n", ret);
-        return ret;
-    }
+    check_ret_and_return(ret, "Failed to setup client connection ");
+    // if (ret) {
+    // rdma_error("Failed to setup client connection , ret = %d \n", ret);
+    // return ret;
+    // }
 
     // Create MR for reading and bind with rsp buffer
     ret = rdmaClient.client_register_data_mr(&(rdmaClient.recvRsp),
                                              rdmaClient.recvReq.length);
-    if (ret) {
-        rdma_error("Failed to register local mr for writing, ret = %d \n", ret);
-        return ret;
-    }
+    check_ret_and_return(ret, "Failed to register local mr for writing");
+    // if (ret) {
+    // rdma_error("Failed to register local mr for writing, ret = %d \n", ret);
+    // return ret;
+    // }
 
     for (int i = 0; i < 10; i++) {
         spdlog::info("{}th send", i);
         *(char *)(rdmaClient.recvReq.pbuf) = 'a';
         *(char *)(rdmaClient.recvReq.pbuf + 1) = 'a';
-        ret =
-            rdmaClient.client_remote_memory_write();
-        if (ret) {
-            rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
-            return ret;
-        }
+        ret = rdmaClient.client_remote_memory_write();
+        check_ret_and_return(ret, "Failed to finish remote memory ops");
+        // if (ret) {
+        // rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
+        // return ret;
+        // }
         rdmaClient.block_check_io_complete();
         sleep(1);
     }
     ret = rdmaClient.client_remote_memory_read();
-    if (ret) {
-        rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
-    }
+    check_ret_and_error(ret, "Failed to finish remote memory ops");
+    // if (ret) {
+    // rdma_error("Failed to finish remote memory ops, ret = %d \n", ret);
+    // }
     rdmaClient.block_check_io_complete();
 
     if (check_src_dst(rdmaClient.recvReq.pbuf, rdmaClient.recvRsp.pbuf)) {
         rdma_error("src and dst buffers do not match");
     }
     ret = rdmaClient.client_disconnect_and_clean(&rdmaClient.recvReq);
-    if (ret) {
-        rdma_error("Failed to cleanly disconnect and clean up resources \n");
-    }
+    check_ret_and_error(ret,
+                        "Failed to cleanly disconnect and clean up resources");
+    // if (ret) {
+    // rdma_error("Failed to cleanly disconnect and clean up resources \n");
+    // }
     return ret;
 }
 
