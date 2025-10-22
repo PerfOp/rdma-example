@@ -84,11 +84,12 @@ int main(int argc, char **argv) {
         // rdma_strerror(errno));
         return ret;
     }
-    ret = rdmaClient.client_pre_post_recv_buffer();
+    ret = rdmaClient.client_prepare_recv_buffer_meta();
     if (ret) {
         rdma_error("Failed to setup client connection , ret = %d \n", ret);
         return ret;
     }
+
     ret = rdmaClient.client_connect_to_server();
     if (ret) {
         rdma_error("Failed to setup client connection , ret = %d \n", ret);
