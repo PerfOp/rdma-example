@@ -45,10 +45,11 @@ int RdmaClient::client_prepare_connection(struct sockaddr_in *s_addr) {
      */
     ret = rdma_create_id(this->cm_event_channel, &this->cm_client_id, NULL,
                          RDMA_PS_TCP);
-    if (ret) {
-        rdma_error("Creating cm id failed with errno: %d \n", -errno);
-        return -errno;
-    }
+    check_error(ret, "Creating cm id failed with errno");
+    // if (ret) {
+        // rdma_error("Creating cm id failed with errno: %d \n", -errno);
+        // return -errno;
+    // }
     /* Resolve destination and optional source addresses from IP addresses  to
      * an RDMA address.  If successful, the specified rdma_cm_id will be bound
      * to a local device. */
@@ -99,12 +100,12 @@ int RdmaClient::client_prepare_connection(struct sockaddr_in *s_addr) {
      * in the operating system. All resources are tied to a particular PD.
      * And accessing recourses across PD will result in a protection fault.
      */
-    this->pd = ibv_alloc_pd(this->cm_client_id->verbs);
-    if (!this->pd) {
+    this->client_pd = ibv_alloc_pd(this->cm_client_id->verbs);
+    if (!this->client_pd) {
         rdma_error("Failed to alloc pd, errno: %d \n", -errno);
         return -errno;
     }
-    debug("pd allocated at %p \n", this->pd);
+    debug("pd allocated at %p \n", this->client_pd);
     /* Now we need a completion channel, were the I/O completion
      * notifications are sent. Remember, this is different from connection
      * management (CM) event notifications.
@@ -174,7 +175,7 @@ int RdmaClient::client_prepare_qp(void) {
                           */
     /*Lets create a QP */
     ret = rdma_create_qp(this->cm_client_id /* which connection id */,
-                         this->pd /* which protection domain*/,
+                         this->client_pd /* which protection domain*/,
                          &this->qp_init_attr /* Initial attributes */);
     if (ret) {
         rdma_error("Failed to create QP, errno: %d \n", -errno);
@@ -192,7 +193,7 @@ int RdmaClient::client_prepare_recv_buffer_meta() {
     int ret = -1;
     // Prepare the mr to write remote-address and rkey to the server side.
     this->serverMeta.Allocate(sizeof(struct RdmaBufferAttr));
-    this->serverMeta.Attach(this->pd,(IBV_ACCESS_LOCAL_WRITE));
+    this->serverMeta.Attach(this->client_pd,(IBV_ACCESS_LOCAL_WRITE));
     recv_server_side_metadata_attr=(RdmaBufferAttr*)this->serverMeta.get_buf();
 
     this->serverMeta.provision_recv_buf(this->client_qp);
@@ -240,15 +241,7 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer *pBuf) {
     // 1. Prepare the SimpleBuffer for request
     int flags = (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
                  IBV_ACCESS_REMOTE_WRITE);
-    /*
-    this->client_write_mr = rdma_buffer_register(
-        this->pd, pBuf->src, strlen(pBuf->src), (ibv_access_flags)flags);
-    if (!this->client_write_mr) {
-        rdma_error("Failed to register the first buffer, ret = %d \n", ret);
-        return ret;
-    }
-    */
-    this->recvReq.Attach(this->pd, (enum ibv_access_flags)flags);
+    this->recvReq.Attach(this->client_pd, (enum ibv_access_flags)flags);
     /* we prepare metadata for the first buffer */
     // client_metadata_attr.address = (uint64_t)this->client_write_mr->addr;
     // client_metadata_attr.length = this->client_write_mr->length;
@@ -266,7 +259,7 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer *pBuf) {
     client_side_metadata_attr->stag.local_stag = this->recvReq.get_mr()->lkey;
 
     // Init the mr to tell the server side the necessary keys.
-    clientMeta.Attach(this->pd, IBV_ACCESS_LOCAL_WRITE);
+    clientMeta.Attach(this->client_pd, IBV_ACCESS_LOCAL_WRITE);
     // Sending the request for exchanging the metadata
     this->clientMeta.remote_msg(this->client_qp, IBV_WR_SEND);
 
@@ -288,7 +281,7 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size) {
     int ret = -1;
     int flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
                 IBV_ACCESS_REMOTE_READ;
-    this->recvRsp.Attach(this->pd, (enum ibv_access_flags)flags);
+    this->recvRsp.Attach(this->client_pd, (enum ibv_access_flags)flags);
     return 0;
 }
 /* This function does :
@@ -367,16 +360,12 @@ int RdmaClient::client_disconnect_and_clean(SimpleBuffer *pBuf) {
         // we continue anyways;
     }
     /* Destroy memory buffers */
-    // rdma_buffer_deregister(this->server_metadata_mr);
     this->serverMeta.DeAttach();
-    // rdma_buffer_deregister(this->client_metadata_mr);
     this->clientMeta.DeAttach();
-    // rdma_buffer_deregister(this->client_write_mr);
     this->recvReq.DeAttach();
-    // rdma_buffer_deregister(this->client_read_mr);
     this->recvRsp.DeAttach();
     /* Destroy protection domain */
-    ret = ibv_dealloc_pd(this->pd);
+    ret = ibv_dealloc_pd(this->client_pd);
     if (ret) {
         rdma_error("Failed to destroy client protection domain cleanly, %d \n",
                    -errno);

@@ -32,6 +32,11 @@
         spdlog::error("{} {}", msg, ##args); \
     } while (0);
 
+#define check_error(ret, msg, args...)            \
+    if (ret != 0) {                          \
+        spdlog::error("{} ret: {}", msg, -errno, ##args); \
+    }
+
 #define rdma_cm_event_status(event, status, args...)                    \
     do {                                                                \
         spdlog::error("cm_event:{} - status:{}", rdma_event_str(event), \
@@ -391,7 +396,7 @@ public:
 
 private:
     struct rdma_cm_id *cm_client_id;
-    struct ibv_pd *pd;
+    struct ibv_pd *client_pd;
     struct ibv_cq *client_cq;
     struct ibv_qp *client_qp;
 
@@ -417,7 +422,7 @@ public:
     RdmaClient()
         : cm_event_channel(nullptr),
           cm_client_id(nullptr),
-          pd(nullptr),
+          client_pd(nullptr),
           io_completion_channel(nullptr),
           client_cq(nullptr),
           client_qp(nullptr) {}

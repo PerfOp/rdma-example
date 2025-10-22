@@ -55,10 +55,7 @@ int main(int argc, char **argv) {
             case 'a':
                 /* remember, this overwrites the port info */
                 ret = get_addr(optarg, (struct sockaddr *)&server_sockaddr);
-                if (ret) {
-                    rdma_error("Invalid IP \n");
-                    return ret;
-                }
+                check_error(ret, "Invalid IP", optarg);
                 break;
             case 'p':
                 /* passed port to listen on */
@@ -85,10 +82,11 @@ int main(int argc, char **argv) {
         return ret;
     }
     ret = rdmaClient.client_prepare_recv_buffer_meta();
-    if (ret) {
-        rdma_error("Failed to setup client connection , ret = %d \n", ret);
-        return ret;
-    }
+    check_error(ret, "Failed to setup client connection ");
+    // if (ret) {
+        // rdma_error("Failed to setup client connection , ret = %d \n", ret);
+        // return ret;
+    // }
 
     ret = rdmaClient.client_connect_to_server();
     if (ret) {
