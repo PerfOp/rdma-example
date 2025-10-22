@@ -191,6 +191,7 @@ int RdmaClient::client_prepare_qp(void){
  * */
 int RdmaClient::client_pre_post_recv_buffer() {
     int ret = -1;
+    // Prepare the mr to write remote-address and rkey to the server side.
     this->server_metadata_mr = rdma_buffer_register(
         this->pd, &server_metadata_attr, sizeof(server_metadata_attr),
         (IBV_ACCESS_LOCAL_WRITE));
@@ -265,22 +266,24 @@ int RdmaClient::client_xchange_metadata_with_server(SimpleBuffer *pBuf) {
         return ret;
     }
     */
-    this->recvReq.Attach(this->pd, flags);
+    this->recvReq.Attach(this->pd, (enum ibv_access_flags)flags);
     /* we prepare metadata for the first buffer */
     // client_metadata_attr.address = (uint64_t)this->client_write_mr->addr;
     // client_metadata_attr.length = this->client_write_mr->length;
     // client_metadata_attr.stag.local_stag = this->client_write_mr->lkey;
 
     // 2. Prepare the SimpleBuffer for metadata of remote mr
-    // 2.1 Allocate memory and init it with client metadata
+    // 2.1 Allocate memory and init it with client metadata info
     clientMeta.Allocate(sizeof(struct RdmaBufferAttr));
-    client_metadata_attr = (struct RdmaBufferAttr*)(clientMeta.get_buf());
 
-    client_metadata_attr->address = (uint64_t)this->recvReq.get_mr()->addr;
-    client_metadata_attr->length = this->recvReq.get_mr()->length;
-    client_metadata_attr->stag.local_stag = this->recvReq.get_mr()->lkey;
+    // Cache the local-generated values and SENDING to the serverside.
+    client_side_metadata_attr = (struct RdmaBufferAttr*)(clientMeta.get_buf());
 
-    // Init the mr
+    client_side_metadata_attr->address = (uint64_t)this->recvReq.get_mr()->addr;
+    client_side_metadata_attr->length = this->recvReq.get_mr()->length;
+    client_side_metadata_attr->stag.local_stag = this->recvReq.get_mr()->lkey;
+
+    // Init the mr to tell the server side the necessary keys.
     clientMeta.Attach(this->pd, IBV_ACCESS_LOCAL_WRITE);
     // Sending the request for exchanging the metadata
     this->clientMeta.remote_msg(this->client_qp, IBV_WR_SEND);
@@ -303,16 +306,21 @@ int RdmaClient::client_register_data_mr(SimpleBuffer *pBuf, uint32_t size) {
     int ret = -1;
     int flags = IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_WRITE |
                 IBV_ACCESS_REMOTE_READ;
-    this->recvRsp.Attach(this->pd, flags);
+    this->recvRsp.Attach(this->pd, (enum ibv_access_flags)flags);
     return 0;
 }
 /* This function does :
  * * Prepare memory buffers for RDMA operations
  * 1) RDMA write from src -> remote buffer
  * 2) RDMA read from remote bufer -> dst
+ * server_metadata_attr is used to transfer the "remote-address" and "rkey"
  */
 int RdmaClient::client_remote_memory_write(){
     return recvReq.remote_write(this->client_qp, server_metadata_attr) ;
+}
+
+int RdmaClient::client_remote_memory_read(){
+    return recvRsp.remote_read(this->client_qp, server_metadata_attr) ;
 }
 
 int RdmaClient::block_check_io_complete(){
@@ -328,9 +336,6 @@ int RdmaClient::block_check_io_complete(){
     return 0;
 }
 
-int RdmaClient::client_remote_memory_read(){
-    return recvRsp.remote_read(this->client_qp, server_metadata_attr) ;
-}
 
 /* This function disconnects the RDMA connection from the server and cleans up
  * all the resources.

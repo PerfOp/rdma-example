@@ -40,8 +40,6 @@ int main(int argc, char **argv) {
                     bufSize = static_cast<uint32_t>(val);
                 } catch (const std::invalid_argument &) {
                     usage();
-                } catch (const std::invalid_argument &) {
-                    usage();
                 }
 
                 rdmaClient.recvReq.Allocate(bufSize);
