@@ -381,10 +381,11 @@ public:
     int disconnect_and_cleanup();
     int server_cleanup();
 
-    int block_handle_connect_event();
-
+    // Block: waiting for connect event on connection management.
+    int wait_for_connect_event();
 private:
-    int prepare_to_recv_client_meta();
+    // Provision a buf to store RdmaBufferAttr from the client side by send/recv;
+    int prepare_buf_to_recv_client_meta();
 };
 
 class RdmaClient {

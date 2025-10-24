@@ -67,8 +67,7 @@ int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
  * Creating client-wise resources for handling communication:
  */
 
-
-int RdmaServer::block_handle_connect_event() {
+int RdmaServer::wait_for_connect_event() {
     int ret = -1;
     struct rdma_cm_event *cm_event = NULL;
     /* now, we expect a client to connect and generate a
@@ -77,10 +76,11 @@ int RdmaServer::block_handle_connect_event() {
      */
     ret = process_rdma_cm_event(this->cm_event_channel,
                                 RDMA_CM_EVENT_CONNECT_REQUEST, &cm_event);
-    if (ret) {
-        rdma_error("Failed to get cm event, ret = %d \n", ret);
-        return ret;
-    }
+    check_ret_and_return(ret, "Failed to get cm event:{}", RDMA_CM_EVENT_CONNECT_REQUEST);
+    // if (ret) {
+        // rdma_error("Failed to get cm event, ret = %d \n", ret);
+        // return ret;
+    // }
     /* Much like TCP connection, listening returns a new connection identifier
      * for newly connected client. In the case of RDMA, this is stored in id
      * field. For more details: man rdma_get_cm_event
@@ -92,19 +92,18 @@ int RdmaServer::block_handle_connect_event() {
      * client id from "id" field before acknowledging the event.
      */
     ret = rdma_ack_cm_event(cm_event);
-    if (ret) {
-        rdma_error("Failed to acknowledge the cm event errno: %d \n", -errno);
-        return -errno;
-    }
+    check_ret_and_return(ret, "Failed to ack cm event");
+    // if (ret) {
+        // rdma_error("Failed to acknowledge the cm event errno: %d \n", -errno);
+        // return -errno;
+    // }
     debug("A new RDMA client connection id is stored at %p\n",
           this->cm_client_id);
     return ret;
 }
 
-int RdmaServer::prepare_to_recv_client_meta(){
-    struct rdma_conn_param conn_param;
-    struct rdma_cm_event *cm_event = NULL;
-    struct sockaddr_in remote_sockaddr;
+// Provision a buf to store RdmaBufferAttr from the client side by send/recv;
+int RdmaServer::prepare_buf_to_recv_client_meta(){
     int ret = -1;
     if (!this->m_clientCtx.cm_client_id || !this->m_clientCtx.client_qp) {
         rdma_error("Client resources are not properly setup\n");
@@ -121,18 +120,20 @@ int RdmaServer::prepare_to_recv_client_meta(){
     return 0;
 }
 
-/* Pre-posts a receive buffer and accepts an RDMA client connection */
+// Pre-posts a receive buffer and accepts an RDMA client connection:
+// 1. provision buf for recving.
 int RdmaServer::accept_client_connection() {
     struct rdma_conn_param conn_param;
     struct rdma_cm_event *cm_event = NULL;
     struct sockaddr_in remote_sockaddr;
     int ret = -1;
 
-    ret = prepare_to_recv_client_meta();
-    if (ret) {
-        rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
-        return ret;
-    }
+    ret = prepare_buf_to_recv_client_meta();
+    check_ret_and_return(ret, "Failed to pre-post the receive buffer");
+    // if (ret) {
+        // rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
+        // return ret;
+    // }
 
     /* Now we accept the connection. Recall we have not accepted the connection
      * yet because we have to do lots of resource pre-allocation */
@@ -144,10 +145,11 @@ int RdmaServer::accept_client_connection() {
     conn_param.responder_resources =
         3; /* For this exercise, we put a small number */
     ret = rdma_accept(this->cm_client_id, &conn_param);
-    if (ret) {
-        rdma_error("Failed to accept the connection, errno: %d \n", -errno);
-        return -errno;
-    }
+    check_ret_and_return(ret, "Failed to accept the connection");
+    // if (ret) {
+        // rdma_error("Failed to accept the connection, errno: %d \n", -errno);
+        // return -errno;
+    // }
     /* We expect an RDMA_CM_EVNET_ESTABLISHED to indicate that the RDMA
      * connection has been established and everything is fine on both, server
      * as well as the client sides.
@@ -155,16 +157,18 @@ int RdmaServer::accept_client_connection() {
     debug("Going to wait for : RDMA_CM_EVENT_ESTABLISHED event \n");
     ret = process_rdma_cm_event(this->cm_event_channel,
                                 RDMA_CM_EVENT_ESTABLISHED, &cm_event);
-    if (ret) {
-        rdma_error("Failed to get the cm event, errnp: %d \n", -errno);
-        return -errno;
-    }
+    check_ret_and_return(ret, "Failed to get the cm event");
+    // if (ret) {
+        // rdma_error("Failed to get the cm event, errnp: %d \n", -errno);
+        // return -errno;
+    // }
     /* We acknowledge the event */
     ret = rdma_ack_cm_event(cm_event);
-    if (ret) {
-        rdma_error("Failed to acknowledge the cm event %d\n", -errno);
-        return -errno;
-    }
+    check_ret_and_return(ret, "Failed to acknowledge the cm event");
+    // if (ret) {
+        // rdma_error("Failed to acknowledge the cm event %d\n", -errno);
+        // return -errno;
+    // }
     /* Just FYI: How to extract connection information */
     memcpy(
         &remote_sockaddr /* where to save */,
@@ -257,16 +261,10 @@ int RdmaServer::disconnect_and_cleanup() {
     debug("Waiting for cm event: RDMA_CM_EVENT_DISCONNECTED\n");
     ret = process_rdma_cm_event(this->cm_event_channel,
                                 RDMA_CM_EVENT_DISCONNECTED, &cm_event);
-    if (ret) {
-        rdma_error("Failed to get disconnect event, ret = %d \n", ret);
-        return ret;
-    }
+    check_ret_and_return(ret, "Failed to get disconnect event");
     /* We acknowledge the event */
     ret = rdma_ack_cm_event(cm_event);
-    if (ret) {
-        rdma_error("Failed to acknowledge the cm event %d\n", -errno);
-        return -errno;
-    }
+    check_ret_and_return(ret, "Failed to acknowledge the cm event");
     printf("A disconnect event is received from the client...\n");
 
     /* Destroy memory buffers */
@@ -286,21 +284,15 @@ int RdmaServer::disconnect_and_cleanup() {
 }
 
 int RdmaServer::server_cleanup() {
-    struct rdma_cm_event *cm_event = NULL;
+    // struct rdma_cm_event *cm_event = NULL;
     int ret = -1;
-    /* Destroy protection domain */
+    // Destroy protection domain
     ret = ibv_dealloc_pd(this->m_clientCtx.pd);
-    if (ret) {
-        rdma_error("Failed to destroy client protection domain cleanly, %d \n",
-                   -errno);
-        // we continue anyways;
-    }
-    /* Destroy rdma server id */
+    check_ret_and_error(ret, "Failed to destroy client protection domain cleanly");
+    // Destroy rdma server id
     ret = rdma_destroy_id(this->cm_server_id);
-    if (ret) {
-        rdma_error("Failed to destroy server id cleanly, %d \n", -errno);
-        // we continue anyways;
-    }
+    check_ret_and_error(ret, "Failed to destroy server id cleanly");
+
     rdma_destroy_event_channel(this->cm_event_channel);
     printf("Server shut-down is complete \n");
     return 0;

@@ -22,7 +22,7 @@ void usage() {
 
 int main_loop() {
     int ret = -1;
-    ret = rdmaServer.block_handle_connect_event();
+    ret = rdmaServer.wait_for_connect_event();
     if (ret) {
         rdma_error("Failed to setup client resources, ret = %d \n", ret);
         return ret;
