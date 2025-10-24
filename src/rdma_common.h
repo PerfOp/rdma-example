@@ -43,8 +43,16 @@
         return ret;                                                        \
     }
 
-#define safe_del(p) if(p!=nullptr){delete (p); (p)=nullptr;}
-#define safe_del_array(p) if(p!=nullptr){delete [](p); (p)=nullptr;}
+#define safe_del(p)     \
+    if (p != nullptr) { \
+        delete (p);     \
+        (p) = nullptr;  \
+    }
+#define safe_del_array(p) \
+    if (p != nullptr) {   \
+        delete[] (p);     \
+        (p) = nullptr;    \
+    }
 
 #define rdma_cm_event_status(event, status, args...)                    \
     do {                                                                \
@@ -128,7 +136,7 @@ struct ibv_mr *rdma_buffer_alloc(struct ibv_pd *pd, uint32_t length,
  * calling rdma_buffer_alloc();
  * @mr: RDMA memory region to free
  */
-void rdma_buffer_free(struct ibv_mr *mr);
+// void rdma_buffer_free(struct ibv_mr *mr);
 
 /* This function registers a previously allocated memory. Returns a memory
  * region (MR) identifier or NULL on error.
@@ -144,7 +152,7 @@ struct ibv_mr *rdma_buffer_register(struct ibv_pd *pd, void *addr,
 /* Deregisters a previously register memory
  * @mr: Memory region to deregister
  */
-void rdma_buffer_deregister(struct ibv_mr *mr);
+// void rdma_buffer_deregister(struct ibv_mr *mr);
 
 /* Processes a work completion (WC) notification.
  * @comp_channel: Completion channel where the notifications are expected to
@@ -185,9 +193,7 @@ public:
     SimpleBuffer()
         : pbuf(nullptr),
           length(0) /*, bad_send_wr(nullptr), bad_recv_wr(nullptr)*/ {}
-    virtual ~SimpleBuffer() {
-        safe_del_array(pbuf);
-    }
+    virtual ~SimpleBuffer() { safe_del_array(pbuf); }
 
     inline const struct ibv_mr *get_mr() { return m_mr; }
     inline const uint8_t *get_buf() { return pbuf; }
@@ -203,9 +209,7 @@ public:
         return size;
     }
 
-    void DeAllocate() {
-        safe_del_array(pbuf);
-    }
+    void DeAllocate() { safe_del_array(pbuf); }
 
     int remote_write(struct ibv_qp *client_qp,
                      const struct RdmaBufferAttr &target_srv_attr) {
@@ -245,7 +249,7 @@ public:
         bzero(&this->recv_wr, sizeof(this->recv_wr));
         this->recv_wr.sg_list = &this->recv_sge;
         this->recv_wr.num_sge = 1;
-        ret = ibv_post_recv(client_qp,                   // which QP
+        ret = ibv_post_recv(client_qp,            // which QP
                             &this->recv_wr,       // receive work request
                             &this->bad_recv_wr);  // error WRs
         check_ret_and_return(ret, "Failed to pre-post the receive buffer");
@@ -279,8 +283,7 @@ private:
         this->send_wr.wr.rdma.rkey = target_srv_attr.stag.remote_stag;
         this->send_wr.wr.rdma.remote_addr = target_srv_attr.address;
         /* Now we post it */
-        ret = ibv_post_send(client_qp, &this->send_wr,
-                            &this->bad_send_wr);
+        ret = ibv_post_send(client_qp, &this->send_wr, &this->bad_send_wr);
         if (ret) {
             rdma_error(
                 "Failed to read client dst buffer from the master, errno: %d "
@@ -293,6 +296,7 @@ private:
 
 public:
     int Attach(struct ibv_pd *pd, enum ibv_access_flags permission) {
+        m_mr = nullptr;
         if (!pd) {
             rdma_error("Protection domain is NULL \n");
             return -1;
@@ -302,13 +306,16 @@ public:
             rdma_error("attaching an invalid buffer");
             return -1;
         }
-        m_mr = rdma_buffer_register(m_pd, pbuf, length, permission);
+        m_mr = ibv_reg_mr(m_pd, pbuf, length, permission);
+        // m_mr = rdma_buffer_register(m_pd, pbuf, length, permission);
         if (!m_mr) {
             rdma_error("Failed to create mr on buffer, errno: %d \n", -errno);
             return -1;
         }
         m_flags = permission;
         debug("Buffer attached: %p , len: %u \n", pbuf, length);
+        // debug("Registered: %p , len: %u , stag: 0x%x \n", mr->addr,
+                // (unsigned int)mr->length, mr->lkey);
 
         return 0;
     }
@@ -318,9 +325,10 @@ public:
             rdma_error("Passed memory region is NULL, ignoring\n");
             return -1;
         }
-        rdma_buffer_deregister(m_mr);
+        ibv_dereg_mr(m_mr);
         return 0;
     }
+
     uint32_t SyncData(void *pdata, uint32_t size) {
         if (size == 0 || pdata == nullptr || pbuf == nullptr || length < size) {
             return 0;
@@ -383,8 +391,10 @@ public:
 
     // Block: waiting for connect event on connection management.
     int wait_for_connect_event();
+
 private:
-    // Provision a buf to store RdmaBufferAttr from the client side by send/recv;
+    // Provision a buf to store RdmaBufferAttr from the client side by
+    // send/recv;
     int prepare_buf_to_recv_client_meta();
 };
 
