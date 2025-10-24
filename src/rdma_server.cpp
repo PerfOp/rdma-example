@@ -49,11 +49,7 @@ int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
      * have only one channel, so it is easy. */
     ret = rdma_listen(this->cm_server_id,
                       8); /* backlog = 8 clients, same as TCP, see man listen*/
-    if (ret) {
-        rdma_error("rdma_listen failed to listen on server address, errno: %d ",
-                   -errno);
-        return -errno;
-    }
+    check_ret_and_return(ret, "rdma_listen failed to listen on server address");
     spdlog::info("Server is listening successfully at: {} , port: {} ",
            inet_ntoa(server_addr->sin_addr), ntohs(server_addr->sin_port));
 
@@ -77,10 +73,6 @@ int RdmaServer::wait_for_connect_event() {
     ret = process_rdma_cm_event(this->cm_event_channel,
                                 RDMA_CM_EVENT_CONNECT_REQUEST, &cm_event);
     check_ret_and_return(ret, "Failed to get cm event:{}", RDMA_CM_EVENT_CONNECT_REQUEST);
-    // if (ret) {
-        // rdma_error("Failed to get cm event, ret = %d \n", ret);
-        // return ret;
-    // }
     /* Much like TCP connection, listening returns a new connection identifier
      * for newly connected client. In the case of RDMA, this is stored in id
      * field. For more details: man rdma_get_cm_event
@@ -93,10 +85,6 @@ int RdmaServer::wait_for_connect_event() {
      */
     ret = rdma_ack_cm_event(cm_event);
     check_ret_and_return(ret, "Failed to ack cm event");
-    // if (ret) {
-        // rdma_error("Failed to acknowledge the cm event errno: %d \n", -errno);
-        // return -errno;
-    // }
     debug("A new RDMA client connection id is stored at %p\n",
           this->cm_client_id);
     return ret;
@@ -130,10 +118,6 @@ int RdmaServer::accept_client_connection() {
 
     ret = prepare_buf_to_recv_client_meta();
     check_ret_and_return(ret, "Failed to pre-post the receive buffer");
-    // if (ret) {
-        // rdma_error("Failed to pre-post the receive buffer, errno: %d \n", ret);
-        // return ret;
-    // }
 
     /* Now we accept the connection. Recall we have not accepted the connection
      * yet because we have to do lots of resource pre-allocation */
@@ -146,10 +130,6 @@ int RdmaServer::accept_client_connection() {
         3; /* For this exercise, we put a small number */
     ret = rdma_accept(this->cm_client_id, &conn_param);
     check_ret_and_return(ret, "Failed to accept the connection");
-    // if (ret) {
-        // rdma_error("Failed to accept the connection, errno: %d \n", -errno);
-        // return -errno;
-    // }
     /* We expect an RDMA_CM_EVNET_ESTABLISHED to indicate that the RDMA
      * connection has been established and everything is fine on both, server
      * as well as the client sides.
@@ -158,17 +138,9 @@ int RdmaServer::accept_client_connection() {
     ret = process_rdma_cm_event(this->cm_event_channel,
                                 RDMA_CM_EVENT_ESTABLISHED, &cm_event);
     check_ret_and_return(ret, "Failed to get the cm event");
-    // if (ret) {
-        // rdma_error("Failed to get the cm event, errnp: %d \n", -errno);
-        // return -errno;
-    // }
     /* We acknowledge the event */
     ret = rdma_ack_cm_event(cm_event);
     check_ret_and_return(ret, "Failed to acknowledge the cm event");
-    // if (ret) {
-        // rdma_error("Failed to acknowledge the cm event %d\n", -errno);
-        // return -errno;
-    // }
     /* Just FYI: How to extract connection information */
     memcpy(
         &remote_sockaddr /* where to save */,
