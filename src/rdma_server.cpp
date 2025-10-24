@@ -54,7 +54,7 @@ int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
                    -errno);
         return -errno;
     }
-    printf("Server is listening successfully at: %s , port: %d \n",
+    spdlog::info("Server is listening successfully at: {} , port: {} ",
            inet_ntoa(server_addr->sin_addr), ntohs(server_addr->sin_port));
 
     return ret;
