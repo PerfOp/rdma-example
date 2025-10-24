@@ -30,17 +30,11 @@ int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
      */
     ret = rdma_create_id(this->cm_event_channel, &this->cm_server_id, NULL,
                          RDMA_PS_TCP);
-    if (ret) {
-        rdma_error("Creating server cm id failed with errno: %d ", -errno);
-        return -errno;
-    }
+    check_ret_and_return(ret, "Creating server cm id failed");
     debug("A RDMA connection id for the server is created \n");
     /* Explicit binding of rdma cm id to the socket credentials */
     ret = rdma_bind_addr(this->cm_server_id, (struct sockaddr *)server_addr);
-    if (ret) {
-        rdma_error("Failed to bind server address, errno: %d \n", -errno);
-        return -errno;
-    }
+    check_ret_and_return(ret, "Failed to bind server address");
     debug("Server RDMA CM id is successfully binded \n");
     /* Now we start to listen on the passed IP and port. However unlike
      * normal TCP listen, this is a non-blocking call. When a new client is
@@ -51,7 +45,8 @@ int RdmaServer::start_rdma_server(struct sockaddr_in *server_addr) {
                       8); /* backlog = 8 clients, same as TCP, see man listen*/
     check_ret_and_return(ret, "rdma_listen failed to listen on server address");
     spdlog::info("Server is listening successfully at: {} , port: {} ",
-           inet_ntoa(server_addr->sin_addr), ntohs(server_addr->sin_port));
+                 inet_ntoa(server_addr->sin_addr),
+                 ntohs(server_addr->sin_port));
 
     return ret;
 }
@@ -72,7 +67,8 @@ int RdmaServer::wait_for_connect_event() {
      */
     ret = process_rdma_cm_event(this->cm_event_channel,
                                 RDMA_CM_EVENT_CONNECT_REQUEST, &cm_event);
-    check_ret_and_return(ret, "Failed to get cm event:{}", RDMA_CM_EVENT_CONNECT_REQUEST);
+    check_ret_and_return(ret, "Failed to get cm event:{}",
+                         RDMA_CM_EVENT_CONNECT_REQUEST);
     /* Much like TCP connection, listening returns a new connection identifier
      * for newly connected client. In the case of RDMA, this is stored in id
      * field. For more details: man rdma_get_cm_event
@@ -91,15 +87,16 @@ int RdmaServer::wait_for_connect_event() {
 }
 
 // Provision a buf to store RdmaBufferAttr from the client side by send/recv;
-int RdmaServer::prepare_buf_to_recv_client_meta(){
+int RdmaServer::prepare_buf_to_recv_client_meta() {
     int ret = -1;
     if (!this->m_clientCtx.cm_client_id || !this->m_clientCtx.client_qp) {
         rdma_error("Client resources are not properly setup\n");
         return -EINVAL;
     }
     this->clientMeta.Allocate(sizeof(struct RdmaBufferAttr));
-    this->clientMeta.Attach(this->m_clientCtx.pd,(IBV_ACCESS_LOCAL_WRITE));
-    this->m_clientCtx.client_metadata_attr=(struct RdmaBufferAttr*)this->clientMeta.get_buf();
+    this->clientMeta.Attach(this->m_clientCtx.pd, (IBV_ACCESS_LOCAL_WRITE));
+    this->m_clientCtx.client_metadata_attr =
+        (struct RdmaBufferAttr *)this->clientMeta.get_buf();
 
     this->clientMeta.provision_recv_buf(this->m_clientCtx.client_qp);
 
@@ -160,7 +157,8 @@ int RdmaServer::send_server_metadata_to_client() {
      * in our example. We will receive a work completion notification for
      * our pre-posted receive request.
      */
-    ret = process_work_completion_events(this->m_clientCtx.io_completion_channel, &wc, 1);
+    ret = process_work_completion_events(
+        this->m_clientCtx.io_completion_channel, &wc, 1);
     if (ret != 1) {
         rdma_error("Failed to receive , ret = %d \n", ret);
         return ret;
@@ -174,9 +172,10 @@ int RdmaServer::send_server_metadata_to_client() {
            this->m_clientCtx.client_metadata_attr->length);
 
     this->serverBuffer.Allocate(this->m_clientCtx.client_metadata_attr->length);
-    this->serverBuffer.Attach(
-        this->m_clientCtx.pd, (IBV_ACCESS_LOCAL_WRITE | IBV_ACCESS_REMOTE_READ |
-                   IBV_ACCESS_REMOTE_WRITE) /* access permissions */);
+    this->serverBuffer.Attach(this->m_clientCtx.pd,
+                              (enum ibv_access_flags)(IBV_ACCESS_LOCAL_WRITE |
+                                                      IBV_ACCESS_REMOTE_READ |
+                                                      IBV_ACCESS_REMOTE_WRITE));
     /* This buffer is used to transmit information about the above
      * buffer to the client. So this contains the metadata about the server
      * buffer. Hence this is called metadata buffer. Since this is already
@@ -189,7 +188,8 @@ int RdmaServer::send_server_metadata_to_client() {
     this->serverMeta.Allocate(sizeof(struct RdmaBufferAttr));
 
     // Cache the local-generated values and SENDING to the serverside.
-    RdmaBufferAttr* server_metadata_attr = (struct RdmaBufferAttr *)(this->serverMeta.get_buf());
+    RdmaBufferAttr *server_metadata_attr =
+        (struct RdmaBufferAttr *)(this->serverMeta.get_buf());
 
     server_metadata_attr->address = (uint64_t)this->serverBuffer.get_mr()->addr;
     server_metadata_attr->length = this->serverBuffer.get_mr()->length;
@@ -200,7 +200,8 @@ int RdmaServer::send_server_metadata_to_client() {
     this->serverMeta.remote_msg(this->m_clientCtx.client_qp, IBV_WR_SEND);
 
     /* We check for completion notification */
-    ret = process_work_completion_events(this->m_clientCtx.io_completion_channel, &wc, 1);
+    ret = process_work_completion_events(
+        this->m_clientCtx.io_completion_channel, &wc, 1);
     if (ret != 1) {
         rdma_error("Failed to send server metadata, ret = %d \n", ret);
         return ret;
@@ -260,7 +261,8 @@ int RdmaServer::server_cleanup() {
     int ret = -1;
     // Destroy protection domain
     ret = ibv_dealloc_pd(this->m_clientCtx.pd);
-    check_ret_and_error(ret, "Failed to destroy client protection domain cleanly");
+    check_ret_and_error(ret,
+                        "Failed to destroy client protection domain cleanly");
     // Destroy rdma server id
     ret = rdma_destroy_id(this->cm_server_id);
     check_ret_and_error(ret, "Failed to destroy server id cleanly");
