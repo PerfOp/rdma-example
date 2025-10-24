@@ -171,9 +171,9 @@ private:
     struct ibv_mr *m_mr;
 
 public:
-    struct ibv_recv_wr client_recv_wr, *bad_client_recv_wr;
-    struct ibv_send_wr client_send_wr, *bad_client_send_wr;
-    struct ibv_sge send_sge, client_recv_sge;
+    struct ibv_recv_wr recv_wr, *bad_recv_wr;
+    struct ibv_send_wr send_wr, *bad_send_wr;
+    struct ibv_sge send_sge, recv_sge;
     uint8_t *pbuf;
     uint32_t length;
 
@@ -222,13 +222,13 @@ public:
         send_sge.length = (uint32_t)m_mr->length;
         send_sge.lkey = m_mr->lkey;
         /* now we link to the send work request */
-        bzero(&this->client_send_wr, sizeof(this->client_send_wr));
-        this->client_send_wr.sg_list = &this->send_sge;
-        this->client_send_wr.num_sge = 1;
-        this->client_send_wr.opcode = opcode;
-        this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
+        bzero(&this->send_wr, sizeof(this->send_wr));
+        this->send_wr.sg_list = &this->send_sge;
+        this->send_wr.num_sge = 1;
+        this->send_wr.opcode = opcode;
+        this->send_wr.send_flags = IBV_SEND_SIGNALED;
         /* Now we post it */
-        ret = ibv_post_send(client_qp, &client_send_wr, &bad_client_send_wr);
+        ret = ibv_post_send(client_qp, &send_wr, &bad_send_wr);
         if (ret) {
             rdma_error("Failed to send client metadata, errno: %d \n", -errno);
             return -errno;
@@ -238,16 +238,16 @@ public:
 
     int provision_recv_buf(struct ibv_qp *client_qp) {
         int ret = -1;
-        this->client_recv_sge.addr = (uint64_t)m_mr->addr;
-        this->client_recv_sge.length = (uint32_t)m_mr->length;
-        this->client_recv_sge.lkey = (uint32_t)m_mr->lkey;
+        this->recv_sge.addr = (uint64_t)m_mr->addr;
+        this->recv_sge.length = (uint32_t)m_mr->length;
+        this->recv_sge.lkey = (uint32_t)m_mr->lkey;
         /* now we link it to the request */
-        bzero(&this->client_recv_wr, sizeof(this->client_recv_wr));
-        this->client_recv_wr.sg_list = &this->client_recv_sge;
-        this->client_recv_wr.num_sge = 1;
+        bzero(&this->recv_wr, sizeof(this->recv_wr));
+        this->recv_wr.sg_list = &this->recv_sge;
+        this->recv_wr.num_sge = 1;
         ret = ibv_post_recv(client_qp,                   // which QP
-                            &this->client_recv_wr,       // receive work request
-                            &this->bad_client_recv_wr);  // error WRs
+                            &this->recv_wr,       // receive work request
+                            &this->bad_recv_wr);  // error WRs
         check_ret_and_return(ret, "Failed to pre-post the receive buffer");
         // if (ret) {
         // rdma_error("Failed to pre-post the receive buffer, errno: %d \n",
@@ -270,17 +270,17 @@ private:
         send_sge.length = (uint32_t)m_mr->length;
         send_sge.lkey = m_mr->lkey;
         /* now we link to the send work request */
-        bzero(&this->client_send_wr, sizeof(this->client_send_wr));
-        this->client_send_wr.sg_list = &this->send_sge;
-        this->client_send_wr.num_sge = 1;
-        this->client_send_wr.opcode = opcode;
-        this->client_send_wr.send_flags = IBV_SEND_SIGNALED;
+        bzero(&this->send_wr, sizeof(this->send_wr));
+        this->send_wr.sg_list = &this->send_sge;
+        this->send_wr.num_sge = 1;
+        this->send_wr.opcode = opcode;
+        this->send_wr.send_flags = IBV_SEND_SIGNALED;
         /* we have to tell server side info for RDMA */
-        this->client_send_wr.wr.rdma.rkey = target_srv_attr.stag.remote_stag;
-        this->client_send_wr.wr.rdma.remote_addr = target_srv_attr.address;
+        this->send_wr.wr.rdma.rkey = target_srv_attr.stag.remote_stag;
+        this->send_wr.wr.rdma.remote_addr = target_srv_attr.address;
         /* Now we post it */
-        ret = ibv_post_send(client_qp, &this->client_send_wr,
-                            &this->bad_client_send_wr);
+        ret = ibv_post_send(client_qp, &this->send_wr,
+                            &this->bad_send_wr);
         if (ret) {
             rdma_error(
                 "Failed to read client dst buffer from the master, errno: %d "
