@@ -7,7 +7,7 @@
  * TODO: Cleanup previously allocated resources in case of an error condition
  */
 #include <csignal>
-#include "rdma_common.h"
+#include "rdma_server.h"
 
 /* These are the RDMA resources needed to setup an RDMA connection */
 /* Event channel, where connection management (cm) related events are relayed */

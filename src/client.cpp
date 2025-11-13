@@ -4,7 +4,7 @@
  *         atrivedi@apache.org
  */
 
-#include "rdma_common.h"
+#include "rdma_client.h"
 
 /* These are basic RDMA resources */
 /* These are RDMA connection related resources */

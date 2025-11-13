@@ -6,7 +6,7 @@
  * Created Time: Wed Oct 15 03:37:05 2025
  * Brief:
  */
-#include "rdma_common.h"
+#include "rdma_client.h"
 
 /* Source and Destination buffers, where RDMA operations source and sink */
 // char *src = NULL, *dst = NULL;

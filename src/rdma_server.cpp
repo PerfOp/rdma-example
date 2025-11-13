@@ -6,7 +6,7 @@
  * Created Time: Wed Oct 15 03:42:35 2025
  * Brief:
  */
-#include "rdma_common.h"
+#include "rdma_server.h"
 
 /* Step 1. Starts an RDMA server by allocating basic connection resources,
  * which are standby resoruce for a server:
